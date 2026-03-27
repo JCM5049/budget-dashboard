@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>费用预算执行看板</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans SC','Microsoft YaHei','PingFang SC',sans-serif;background:#f7f6f4;color:#2d2d2d;font-weight:400;letter-spacing:.02em;}
+  .nav{background:#fff;padding:0 48px;display:flex;align-items:center;justify-content:space-between;height:56px;border-bottom:1px solid #e8e4df;position:sticky;top:0;z-index:100;}
+  .nav-brand{display:flex;align-items:center;gap:16px;}
+  .nav-logo{width:34px;height:34px;background:#1a1a1a;border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;letter-spacing:-1px;font-weight:700;}
+  .nav-title{font-size:13px;font-weight:600;color:#1a1a1a;letter-spacing:.08em;}
+  .nav-sub{font-size:10px;color:#999;letter-spacing:.05em;margin-top:1px;}
+  .nav-divider{width:1px;height:24px;background:#e8e4df;margin:0 16px;}
+  .nav-tabs{display:flex;gap:0;}
+  .nav-tab{padding:6px 16px;font-size:11px;cursor:pointer;color:#888;border:none;background:transparent;transition:.25s;letter-spacing:.06em;font-weight:500;border-bottom:2px solid transparent;position:relative;top:1px;}
+  .nav-tab.active{color:#1a1a1a;border-bottom:2px solid #1a1a1a;}
+  .nav-tab:hover:not(.active){color:#555;}
+  .nav-time{font-size:11px;color:#aaa;letter-spacing:.05em;}
+  .main{padding:16px 48px;max-width:1520px;margin:0 auto;}
+  .page{display:none;}.page.active{display:block;}
+  .page-header{margin-bottom:10px;}
+  .page-header h2{font-size:16px;font-weight:600;color:#1a1a1a;letter-spacing:.05em;}
+  .page-header p{font-size:10px;color:#999;margin-top:2px;letter-spacing:.03em;}
+  .slicer-bar{background:#fff;border:1px solid #e8e4df;border-radius:4px;padding:8px 16px;margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .slicer-label{font-size:9px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.12em;white-space:nowrap;margin-right:4px;}
+  .slicer-btn{padding:5px 12px;font-size:11px;cursor:pointer;color:#888;background:transparent;border:1px solid #e8e4df;border-radius:2px;transition:.2s;font-family:inherit;font-weight:500;letter-spacing:.04em;user-select:none;}
+  .slicer-btn:hover{border-color:#bbb;color:#555;}
+  .slicer-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a;}
+  .slicer-sep{width:1px;height:22px;background:#e8e4df;margin:0 4px;}
+  .slicer-info{margin-left:auto;font-size:10px;color:#bbb;letter-spacing:.03em;}
+  .slicer-info strong{color:#1a1a1a;font-weight:600;}
+  .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px;}
+  .kpi{background:#fff;border:1px solid #e8e4df;border-radius:4px;padding:10px 14px;position:relative;transition:.25s;}
+  .kpi:hover{box-shadow:0 4px 24px rgba(0,0,0,.06);}
+  .kpi-top-line{position:absolute;top:0;left:0;right:0;height:2px;border-radius:4px 4px 0 0;}
+  .kpi.c-dark .kpi-top-line{background:#1a1a1a;}.kpi.c-gold .kpi-top-line{background:#b8956a;}
+  .kpi.c-sage .kpi-top-line{background:#7c9a8a;}.kpi.c-silver .kpi-top-line{background:#8c8c8c;}
+  .kpi.c-blue .kpi-top-line{background:#5b8ec9;}
+  .kpi-label{font-size:8px;color:#aaa;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px;font-weight:500;}
+  .kpi-value{font-size:18px;font-weight:300;color:#1a1a1a;letter-spacing:-.01em;transition:.3s;}
+  .kpi-value span{font-size:10px;font-weight:500;}
+  .kpi-sub{font-size:9px;color:#bbb;margin-top:2px;letter-spacing:.03em;}
+  .charts-row{display:grid;gap:10px;margin-bottom:10px;}
+  .chart-card{background:#fff;border:1px solid #e8e4df;border-radius:4px;padding:12px 16px;transition:.25s;}
+  .chart-card:hover{box-shadow:0 4px 24px rgba(0,0,0,.05);}
+  .chart-title{font-size:10px;font-weight:600;color:#1a1a1a;margin-bottom:8px;display:flex;align-items:center;gap:10px;letter-spacing:.08em;text-transform:uppercase;}
+  .chart-title::after{content:'';flex:1;height:1px;background:#f0ece8;}
+  .chart-wrap{position:relative;}
+  .two-col{grid-template-columns:1fr 1fr;}.three-col{grid-template-columns:2fr 1fr;}
+  .dept-bar-list{display:flex;flex-direction:column;gap:10px;}
+  .dept-bar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+  .dept-bar-name{font-size:11px;color:#333;letter-spacing:.04em;font-weight:500;}
+  .dept-bar-stats{display:flex;gap:14px;font-size:10px;color:#aaa;}
+  .dept-bar-stats span.hl{color:#333;}
+  .bar-track{height:4px;background:#f0ece8;border-radius:2px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:2px;transition:width 1.2s ease;}
+  .bar-fill.safe{background:#7c9a8a;}.bar-fill.warn{background:#b8956a;}.bar-fill.over{background:#c4846c;}
+  .data-table{width:100%;border-collapse:collapse;font-size:11px;}
+  .data-table th{background:#faf8f5;color:#888;padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap;letter-spacing:.06em;font-size:9px;text-transform:uppercase;border-bottom:1px solid #e8e4df;}
+  .data-table th:first-child{text-align:left;}
+  .data-table td{padding:8px 10px;border-bottom:1px solid #f5f2ee;text-align:right;color:#333;font-size:11px;}
+  .data-table td:first-child{text-align:left;color:#1a1a1a;font-weight:500;}
+  .data-table tr:hover td{background:#faf8f5;}
+  .data-table tfoot td{font-weight:600;color:#1a1a1a;background:#faf8f5;border-top:1px solid #e8e4df;border-bottom:none;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:2px;font-size:10px;font-weight:600;letter-spacing:.06em;}
+  .tag-green{background:#f0f7f4;color:#4a9470;}.tag-warn{background:#fdf8ee;color:#b8956a;}.tag-red{background:#fef5f0;color:#c4846c;}
+  .expand-toggle{cursor:pointer;user-select:none;}
+  .expand-toggle:hover{color:#b8956a;}
+  .expand-icon{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;font-size:9px;border:1px solid #ccc;border-radius:2px;margin-right:4px;transition:transform .2s;color:#888;vertical-align:middle;font-weight:700;}
+  .expand-icon.open{transform:rotate(90deg);}
+  .expand-row td{padding:0 !important;border-bottom:none !important;background:#faf8f5;}
+  .expand-inner{padding:4px 10px 8px 36px;display:none;}
+  .expand-inner.show{display:block;}
+  .expand-sub-table{width:100%;border-collapse:collapse;font-size:10px;}
+  .expand-sub-table th{background:#f0ece8;color:#999;padding:6px 8px;text-align:right;font-weight:600;font-size:8px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #e8e4df;}
+  .expand-sub-table th:first-child{text-align:left;}
+  .expand-sub-table td{padding:6px 8px;border-bottom:1px solid #f5f2ee;text-align:right;color:#555;}
+  .expand-sub-table td:first-child{text-align:left;color:#333;font-weight:400;}
+  .expand-sub-table tr:last-child td{border-bottom:none;}
+  .empty{text-align:center;color:#ccc;padding:40px;font-size:12px;}
+  .scroll-x{overflow-x:auto;}
+  ::-webkit-scrollbar{height:4px;width:4px;}
+  ::-webkit-scrollbar-track{background:#f5f2ee;}
+  ::-webkit-scrollbar-thumb{background:#d4cec8;border-radius:2px;}
+  .num-save{color:#4a9470;}.num-over{color:#c4846c;}
+  .gl-link{color:#5b8ec9;text-decoration:none;cursor:pointer;font-weight:500;}
+  .gl-link:hover{text-decoration:underline;color:#3a6ea5;}
+  @media(max-width:1200px){.kpi-row{grid-template-columns:repeat(3,1fr);}}
+  @media(max-width:768px){.main{padding:20px 16px;}.nav{padding:0 16px;}.kpi-row{grid-template-columns:1fr 1fr;}.two-col,.three-col{grid-template-columns:1fr;}.slicer-bar{padding:14px 16px;}.slicer-info{margin-left:0;width:100%;margin-top:4px;}}
+</style>
+<style>
+/* GL detail page */
+.gl-back{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;background:#fff;border:1px solid #e8e4df;border-radius:4px;font-size:12px;cursor:pointer;color:#888;font-weight:500;letter-spacing:.04em;margin-bottom:24px;transition:.2s;}
+.gl-back:hover{border-color:#1a1a1a;color:#1a1a1a;}
+.gl-page-header{margin-bottom:24px;padding-bottom:16px;border-bottom:1px solid #e8e4df;}
+.gl-page-header h2{font-size:18px;font-weight:600;color:#1a1a1a;letter-spacing:.05em;margin-bottom:6px;}
+.gl-page-header p{font-size:12px;color:#999;}
+.gl-summary{display:flex;gap:24px;margin-bottom:20px;}
+.gl-summary-item{background:#fff;border:1px solid #e8e4df;border-radius:4px;padding:16px 20px;flex:1;}
+.gl-summary-item .label{font-size:10px;color:#aaa;text-transform:uppercase;letter-spacing:.1em;margin-bottom:8px;}
+.gl-summary-item .value{font-size:20px;font-weight:300;color:#1a1a1a;}
+.gl-table{width:100%;border-collapse:collapse;font-size:12px;}
+.gl-table th{background:#faf8f5;color:#888;padding:12px 14px;text-align:left;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;border-bottom:2px solid #e8e4df;white-space:nowrap;}
+.gl-table td{padding:10px 14px;border-bottom:1px solid #f5f2ee;color:#333;}
+.gl-table tr:hover td{background:#faf8f5;}
+.gl-table .num{text-align:right;font-family:'Noto Sans SC',monospace;}
+.gl-table .summary-cell{max-width:360px;white-space:normal;line-height:1.5;color:#555;}
+.gl-table tfoot td{font-weight:600;color:#1a1a1a;background:#faf8f5;border-top:2px solid #e8e4df;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-brand">
+    <div class="nav-logo">FB</div>
+    <div><div class="nav-title">费用预算执行看板</div><div class="nav-sub">2026 年度 · 数据截至 2026年3月</div></div>
+  </div>
+  <div class="nav-divider"></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('overview')">总览</button>
+    <button class="nav-tab" onclick="showPage('trend')">月度趋势</button>
+    <button class="nav-tab" onclick="showPage('dept')">部门分析</button>
+    <button class="nav-tab" onclick="showPage('acct')">费用分析</button>
+  </div>
+  <div class="nav-time">更新时间 2026 / 03 / 25</div>
+</nav>
+
+<div class="main">
+
+<!-- ═══════════ 总览 ═══════════ -->
+<div id="page-overview" class="page active">
+  <div class="page-header"><h2>预算执行总览</h2><p>多选月份查看预算与实际费用对比（默认 YTD 累计）</p></div>
+  <div class="slicer-bar" id="ovSlicerBar">
+    <span class="slicer-label">月份筛选</span>
+    <button class="slicer-btn active" data-ovm="0">YTD 累计</button>
+    <button class="slicer-btn" data-ovm="1">1月</button><button class="slicer-btn" data-ovm="2">2月</button><button class="slicer-btn" data-ovm="3">3月</button>
+    <button class="slicer-btn" data-ovm="4">4月</button><button class="slicer-btn" data-ovm="5">5月</button><button class="slicer-btn" data-ovm="6">6月</button>
+    <button class="slicer-btn" data-ovm="7">7月</button><button class="slicer-btn" data-ovm="8">8月</button><button class="slicer-btn" data-ovm="9">9月</button>
+    <button class="slicer-btn" data-ovm="10">10月</button><button class="slicer-btn" data-ovm="11">11月</button><button class="slicer-btn" data-ovm="12">12月</button>
+    <div class="slicer-info" id="ovSlicerInfo">当前：<strong>YTD 累计</strong></div>
+  </div>
+  <div class="kpi-row">
+    <div class="kpi c-dark"><div class="kpi-top-line"></div><div class="kpi-label" id="k1L">YTD 调整预算</div><div class="kpi-value" id="k1V">—<span>万元</span></div><div class="kpi-sub" id="k1S"></div></div>
+    <div class="kpi c-blue"><div class="kpi-top-line"></div><div class="kpi-label" id="k1bL">YTD 可使用预算</div><div class="kpi-value" id="k1bV">—<span>万元</span></div><div class="kpi-sub" id="k1bS">可使用预算 = 调整预算 × 82%</div></div>
+    <div class="kpi c-sage"><div class="kpi-top-line"></div><div class="kpi-label" id="k2L">YTD 实际发生</div><div class="kpi-value" id="k2V">—<span>万元</span></div><div class="kpi-sub" id="k2S"></div></div>
+    <div class="kpi c-blue"><div class="kpi-top-line"></div><div class="kpi-label" id="k2bL">YTD 费用率</div><div class="kpi-value" id="k2bV">—<span>%</span></div><div class="kpi-sub" id="k2bS">费用率 = 实际 / 调整预算</div></div>
+    <div class="kpi c-gold"><div class="kpi-top-line"></div><div class="kpi-label" id="k3L">YTD 执行率</div><div class="kpi-value" id="k3V">—<span>%</span></div><div class="kpi-sub" id="k3S"></div></div>
+    <div class="kpi c-silver"><div class="kpi-top-line"></div><div class="kpi-label" id="k4L">可使用预算结余</div><div class="kpi-value" id="k4V">—<span>万元</span></div><div class="kpi-sub" id="k4S"></div></div>
+  </div>
+  <div class="charts-row two-col">
+    <div class="chart-card"><div class="chart-title" id="ovBarT">各部门预算 vs 实际</div><div class="chart-wrap" style="height:200px"><canvas id="chartOvBar"></canvas></div></div>
+    <div class="chart-card"><div class="chart-title">月度执行趋势（1–3月）</div><div class="chart-wrap" style="height:200px"><canvas id="chartOvLine"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ═══════════ 月度趋势 ═══════════ -->
+<div id="page-trend" class="page">
+  <div class="page-header"><h2>月度执行趋势</h2><p>选择月份查看预算与实际费用的差额分析</p></div>
+  <div class="slicer-bar" id="trendSlicerBar">
+    <span class="slicer-label">显示模式</span>
+    <button class="slicer-btn" data-tm="0" id="tmBtnYtd">累计模式</button>
+    <button class="slicer-btn active" data-tm="1" id="tmBtnMon">单月模式</button>
+    <div class="slicer-info" id="tmSlicerInfo">当前：<strong>单月模式</strong></div>
+  </div>
+  <div class="charts-row" style="grid-template-columns:1fr">
+    <div class="chart-card"><div class="chart-title" id="tdChartT">月度预算 vs 实际（折线图）</div><div class="chart-wrap" style="height:380px"><canvas id="chartTdLine"></canvas></div></div>
+  </div>
+  <div class="charts-row" style="grid-template-columns:1fr">
+    <div class="chart-card">
+      <div class="chart-title" id="tdAcctT">月度费用明细（展开月份→费用名称→部门·蓝色金额可查看明细账）</div>
+      <div class="scroll-x">
+        <table class="data-table">
+          <thead><tr>
+            <th style="width:30px"></th>
+            <th>费用名称</th>
+            <th style="text-align:right">调整预算（元）</th>
+            <th style="text-align:right">可使用预算（元）</th>
+            <th style="text-align:right">实际发生（元）</th>
+            <th style="text-align:right">执行率</th>
+            <th style="text-align:right">预算结余（元）</th>
+            <th style="text-align:center">状态</th>
+          </tr></thead>
+          <tbody id="tdAcctBody"></tbody>
+          <tfoot id="tdAcctFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 部门分析 ═══════════ -->
+<div id="page-dept" class="page">
+  <div class="page-header"><h2>部门费用分析</h2><p>多选月份筛选，点击部门行展开查看费用类别明细（按执行率降序）· 蓝色金额可点击查看明细账</p></div>
+  <div class="slicer-bar" id="deptSlicerBar">
+    <span class="slicer-label">月份筛选</span>
+    <button class="slicer-btn active" data-dmm="0">YTD 累计</button>
+    <button class="slicer-btn" data-dmm="1">1月</button><button class="slicer-btn" data-dmm="2">2月</button><button class="slicer-btn" data-dmm="3">3月</button>
+    <button class="slicer-btn" data-dmm="4">4月</button><button class="slicer-btn" data-dmm="5">5月</button><button class="slicer-btn" data-dmm="6">6月</button>
+    <button class="slicer-btn" data-dmm="7">7月</button><button class="slicer-btn" data-dmm="8">8月</button><button class="slicer-btn" data-dmm="9">9月</button>
+    <button class="slicer-btn" data-dmm="10">10月</button><button class="slicer-btn" data-dmm="11">11月</button><button class="slicer-btn" data-dmm="12">12月</button>
+    <div class="slicer-info" id="dmSlicerInfo">当前：<strong>YTD 累计</strong></div>
+  </div>
+  <div class="charts-row" style="grid-template-columns:5fr 7fr;margin-bottom:10px">
+    <div class="chart-card" style="padding:12px 14px"><div class="chart-title" id="dmBarT">部门执行率排行（降序）</div><div class="dept-bar-list" id="dmBars"></div></div>
+    <div class="chart-card">
+      <div class="chart-title" id="dmTblT">部门费用执行明细（点击部门展开费用类别·按执行率降序）</div>
+      <div class="scroll-x">
+        <table class="data-table">
+          <thead><tr><th style="width:30px"></th><th>部门</th><th>调整预算（元）</th><th>可使用预算（元）</th><th>实际发生（元）</th><th>执行率</th><th>预算结余（元）</th><th>状态</th></tr></thead>
+          <tbody id="dmTblBody"></tbody>
+          <tfoot id="dmTblFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 费用分析 ═══════════ -->
+<div id="page-acct" class="page">
+  <div class="page-header"><h2>费用科目分析</h2><p>按费用类别维度查看费用执行情况，点击费用行展开查看部门明细（按执行率降序）· 蓝色金额可点击查看明细账</p></div>
+  <div class="slicer-bar" id="acctSlicerBar">
+    <span class="slicer-label">月份筛选</span>
+    <button class="slicer-btn active" data-am="0">YTD 累计</button>
+    <button class="slicer-btn" data-am="1">1月</button><button class="slicer-btn" data-am="2">2月</button><button class="slicer-btn" data-am="3">3月</button>
+    <button class="slicer-btn" data-am="4">4月</button><button class="slicer-btn" data-am="5">5月</button><button class="slicer-btn" data-am="6">6月</button>
+    <button class="slicer-btn" data-am="7">7月</button><button class="slicer-btn" data-am="8">8月</button><button class="slicer-btn" data-am="9">9月</button>
+    <button class="slicer-btn" data-am="10">10月</button><button class="slicer-btn" data-am="11">11月</button><button class="slicer-btn" data-am="12">12月</button>
+    <div class="slicer-info" id="amSlicerInfo">当前：<strong>YTD 累计</strong></div>
+  </div>
+  <div class="charts-row" style="grid-template-columns:5fr 7fr;margin-bottom:10px">
+    <div class="chart-card" style="padding:12px 14px"><div class="chart-title" id="acBarT">费用类别执行率排行（降序）</div><div class="dept-bar-list" id="acBars"></div></div>
+    <div class="chart-card">
+      <div class="chart-title" id="acTblT">费用类别执行明细（点击费用行展开部门·按执行率降序）</div>
+      <div class="scroll-x">
+        <table class="data-table">
+          <thead><tr><th style="width:30px"></th><th>费用名称</th><th style="text-align:right">调整预算（元）</th><th style="text-align:right">可使用预算（元）</th><th style="text-align:right">实际发生（元）</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余（元）</th><th style="text-align:center">状态</th></tr></thead>
+          <tbody id="acTblBody"></tbody>
+          <tfoot id="acTblFoot"></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 明细账页面 ═══════════ -->
+<div id="page-gl" class="page">
+  <div class="gl-back" onclick="goBackFromGL()">◀ 返回看板</div>
+  <div class="gl-page-header">
+    <h2 id="glTitle">明细账</h2>
+    <p id="glSub"></p>
+  </div>
+  <div class="gl-summary" id="glSummary"></div>
+  <div class="chart-card">
+    <div class="chart-title">明细账数据（GL日期、摘要、借贷方金额）</div>
+    <div class="scroll-x">
+      <table class="gl-table">
+        <thead><tr><th>序号</th><th>GL日期</th><th>摘要</th><th style="text-align:right">借方金额（元）</th><th style="text-align:right">贷方金额（元）</th></tr></thead>
+        <tbody id="glBody"></tbody>
+        <tfoot id="glFoot"></tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// Constants & Utilities
+// ═══════════════════════════════════════════════════════════
+const AVAIL_RATE = 0.82;
+function availBudget(b){ return b * AVAIL_RATE; }
+function execRate(actual, budget){ return budget > 0 ? +(actual / availBudget(budget) * 100).toFixed(1) : 0; }
+function fmt(v){return v==null||v===0?'-':v.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtW(v){return(v/10000).toFixed(1);}
+function tagH(s){const m={'正常':'tag-green','注意':'tag-warn','超支':'tag-red'};return'<span class="tag '+(m[s]||'tag-warn')+'">'+s+'</span>';}
+function statusTag(rate){ return rate>100?'超支':(rate>90?'注意':'正常'); }
+
+// ═══════════════════════════════════════════════════════════
+// Data
+// ═══════════════════════════════════════════════════════════
+const DL = ["售前服务部","总经办","系统实施部","系统研发部","综合管理部","项目实施部"];
+const DA = [484303.8,120953.48999999999,129594.75,294021.65,518429.75,241328.54];
+const DMA = {1:[38705.88,1319.02,5363.97,13333.48,5857.57,7500.42],2:[12046.06,837.89,4440.0,5832.9,5505.6900000000005,6965.85],3:[15491.26,533.56,8102.37,11720.23,229.81,10820.83],4:[0.0,0.0,0.0,0.0,0.0,0.0],5:[0.0,0.0,0.0,0.0,0.0,0.0],6:[0.0,0.0,0.0,0.0,0.0,0.0],7:[0.0,0.0,0.0,0.0,0.0,0.0],8:[0.0,0.0,0.0,0.0,0.0,0.0],9:[0.0,0.0,0.0,0.0,0.0,0.0],10:[0.0,0.0,0.0,0.0,0.0,0.0],11:[0.0,0.0,0.0,0.0,0.0,0.0],12:[0.0,0.0,0.0,0.0,0.0,0.0],};
+const MB = [78403.15,64488.88,131542.77,202064.22,224112.73,210783.28999999998,200596.95,73293.72,129486.13,243701.41,78157.64,152001.09];
+const MA = [72080.34,35628.39,46898.06,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+const MCB = [78403.15,142892.03,274434.8,476499.02,700611.75,911395.04,1111991.99,1185285.71,1314771.8399999999,1558473.2499999998,1636630.8899999997,1788631.9799999997];
+const MCA = [72080.34,107708.73,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998,154606.78999999998];
+const TA = 1788631.98;
+const DM = 3;
+const MG = [33374.46,23582.33,31406.800000000003,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+const MS = [38705.88,12046.06,15491.26,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+const DEPT_ACCTS = {"售前服务部":[{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660115","n":"差旅费","b":257942.95,"a":53070.82,"r":"销售费用"},{"c":"660118","n":"业务招待费","b":135132.75,"a":10102.98,"r":"销售费用"},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660130","n":"宣传费","b":59235.7,"a":0.0,"r":"销售费用"},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660180015","n":"集团内/差旅费","b":21992.4,"a":0.0,"r":"销售费用"},{"c":"660180018","n":"集团内/业务招待费","b":10000.0,"a":3069.4,"r":"销售费用"},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用"},],"总经办":[{"c":"660213","n":"办公费","b":1.0,"a":0.0,"r":"管理费用"},{"c":"660214","n":"邮费、通讯费","b":0.0,"a":1352.98,"r":"管理费用"},{"c":"660215","n":"差旅费","b":89978.03,"a":533.56,"r":"管理费用"},{"c":"660218","n":"业务招待费","b":25973.46,"a":0.0,"r":"管理费用"},{"c":"660225","n":"IT运维费用","b":1.0,"a":803.93,"r":"管理费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280018","n":"集团内/业务招待费","b":5000.0,"a":0.0,"r":"管理费用"},],"系统实施部":[{"c":"660215","n":"差旅费","b":89360.08,"a":17906.34,"r":"管理费用"},{"c":"660225","n":"IT运维费用","b":26548.67,"a":0.0,"r":"管理费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280015","n":"集团内/差旅费","b":13686.0,"a":0.0,"r":"管理费用"},],"系统研发部":[{"c":"660215","n":"差旅费","b":182629.56,"a":30118.45,"r":"管理费用"},{"c":"660225","n":"IT运维费用","b":265.49,"a":768.16,"r":"管理费用"},{"c":"660249","n":"软件及维护费","b":107964.6,"a":0.0,"r":"管理费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280015","n":"集团内/差旅费","b":3162.0,"a":0.0,"r":"管理费用"},],"综合管理部":[{"c":"660213","n":"办公费","b":12212.39,"a":1318.92,"r":"管理费用"},{"c":"660214","n":"邮费、通讯费","b":24564.87,"a":1752.86,"r":"管理费用"},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660222999","n":"物料消耗/其他","b":8849.56,"a":0.0,"r":"管理费用"},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660236","n":"咨询费","b":309611.66,"a":1573.19,"r":"管理费用"},{"c":"660237","n":"审计、法律中介服务费","b":42735.84,"a":0.0,"r":"管理费用"},{"c":"660240","n":"商标注册及使用费","b":96165.05,"a":3300.0,"r":"管理费用"},{"c":"660247","n":"会员费及代理费","b":5660.38,"a":0.0,"r":"管理费用"},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660255","n":"团队建设费","b":18630.0,"a":0.0,"r":"管理费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":315.0,"r":"管理费用"},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":480.0,"r":"管理费用"},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":2853.1,"r":"管理费用"},{"c":"660290","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"管理费用"},],"项目实施部":[{"c":"660214","n":"邮费、通讯费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660215","n":"差旅费","b":179792.65,"a":19317.1,"r":"管理费用"},{"c":"660225","n":"IT运维费用","b":2123.89,"a":0.0,"r":"管理费用"},{"c":"660236","n":"咨询费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用"},{"c":"660280015","n":"集团内/差旅费","b":35412.0,"a":480.0,"r":"管理费用"},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":1590.0,"r":"管理费用"},{"c":"660290","n":"未取得发票的费用","b":24000.0,"a":3900.0,"r":"管理费用"},],};
+const MONTH_ACCTS = {1:[{"c":"660213","n":"办公费","b":530.97,"a":336.0,"r":"管理费用","d":[{n:"综合管理部",a:336.0}]},{"c":"660214","n":"邮费、通讯费","b":1162.12,"a":1492.4,"r":"管理费用","d":[{n:"总经办",a:1319.02},{n:"综合管理部",a:173.38}]},{"c":"660215","n":"差旅费","b":38340.81,"a":21817.87,"r":"管理费用","d":[{n:"系统实施部",a:5363.97},{n:"系统研发部",a:13333.48},{n:"项目实施部",a:3120.42}]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":265.49,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":315.0,"r":"管理费用","d":[{n:"综合管理部",a:315.0}]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":1941.75,"a":1573.19,"r":"管理费用","d":[{n:"综合管理部",a:1573.19}]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":3398.06,"a":3300.0,"r":"管理费用","d":[{n:"综合管理部",a:3300.0}]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":160.0,"r":"管理费用","d":[{n:"综合管理部",a:160.0}]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":4000.0,"a":3900.0,"r":"管理费用","d":[{n:"项目实施部",a:3900.0}]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":480.0,"r":"管理费用","d":[{n:"项目实施部",a:480.0}]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":22576.25,"a":38705.88,"r":"销售费用","d":[{n:"售前服务部",a:38705.88}]},{"c":"660118","n":"业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],2:[{"c":"660213","n":"办公费","b":530.97,"a":982.92,"r":"管理费用","d":[{n:"综合管理部",a:982.92}]},{"c":"660214","n":"邮费、通讯费","b":719.64,"a":1543.63,"r":"管理费用","d":[{n:"总经办",a:33.96},{n:"综合管理部",a:1509.67}]},{"c":"660215","n":"差旅费","b":33340.81,"a":15675.59,"r":"管理费用","d":[{n:"系统实施部",a:4440.0},{n:"系统研发部",a:5064.74},{n:"项目实施部",a:6170.85}]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":1572.09,"r":"管理费用","d":[{n:"总经办",a:803.93},{n:"系统研发部",a:768.16}]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":795.0,"r":"管理费用","d":[{n:"项目实施部",a:795.0}]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":9708.74,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":160.0,"r":"管理费用","d":[{n:"综合管理部",a:160.0}]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":2853.1,"r":"管理费用","d":[{n:"综合管理部",a:2853.1}]},{"c":"660290","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":9576.25,"a":408.38,"r":"销售费用","d":[{n:"售前服务部",a:408.38}]},{"c":"660118","n":"业务招待费","b":4424.77,"a":10102.98,"r":"销售费用","d":[{n:"售前服务部",a:10102.98}]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":1534.7,"r":"销售费用","d":[{n:"售前服务部",a:1534.7}]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],3:[{"c":"660213","n":"办公费","b":1194.69,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2932.03,"a":69.81,"r":"管理费用","d":[{n:"综合管理部",a:69.81}]},{"c":"660215","n":"差旅费","b":46710.009999999995,"a":30381.99,"r":"管理费用","d":[{n:"总经办",a:533.56},{n:"系统实施部",a:8102.37},{n:"系统研发部",a:11720.23},{n:"项目实施部",a:10025.83}]},{"c":"660218","n":"业务招待费","b":4424.78,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":795.0,"r":"管理费用","d":[{n:"项目实施部",a:795.0}]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":45145.63,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":160.0,"r":"管理费用","d":[{n:"综合管理部",a:160.0}]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":6576.25,"a":13956.56,"r":"销售费用","d":[{n:"售前服务部",a:13956.56}]},{"c":"660118","n":"业务招待费","b":11185.84,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":2654.87,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":2000.0,"a":1534.7,"r":"销售费用","d":[{n:"售前服务部",a:1534.7}]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],4:[{"c":"660213","n":"办公费","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":46049.49,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":4424.78,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":46601.94,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":70796.46,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":8849.56,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],5:[{"c":"660213","n":"办公费","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":74347.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":48543.69,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":82048.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":7407.08,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":1000.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],6:[{"c":"660213","n":"办公费","b":1194.69,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":3374.5,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":41810.009999999995,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":6349.56,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":2500.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":24077.67,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":20436.89,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":18630.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":21238.94,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":42221.24,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":2654.87,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":3000.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],7:[{"c":"660213","n":"办公费","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":46049.49,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":63106.8,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":42735.84,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":15929.2,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":7433.63,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],8:[{"c":"660213","n":"办公费","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":42066.770000000004,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":9576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":10884.96,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],9:[{"c":"660213","n":"办公费","b":2964.6,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":50844.770000000004,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":6349.56,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":2500.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":40132.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":10362.83,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":3097.35,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":3000.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],10:[{"c":"660213","n":"办公费","b":1946.9,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":42066.770000000004,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":26548.67,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":105922.33,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":27184.47,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":15221.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],11:[{"c":"660213","n":"办公费","b":530.97,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.07,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":37066.770000000004,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":5660.38,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.25,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":7433.63,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":2654.87,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],12:[{"c":"660213","n":"办公费","b":1195.72,"a":0.0,"r":"管理费用","d":[]},{"c":"660214","n":"邮费、通讯费","b":2047.09,"a":0.0,"r":"管理费用","d":[]},{"c":"660215","n":"差旅费","b":43066.649999999994,"a":0.0,"r":"管理费用","d":[]},{"c":"660218","n":"业务招待费","b":8849.56,"a":0.0,"r":"管理费用","d":[]},{"c":"660225","n":"IT运维费用","b":1062.95,"a":0.0,"r":"管理费用","d":[]},{"c":"660266","n":"代付税费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280018","n":"集团内/业务招待费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660222999","n":"物料消耗/其他","b":4424.78,"a":0.0,"r":"管理费用","d":[]},{"c":"660236","n":"咨询费","b":9708.74,"a":0.0,"r":"管理费用","d":[]},{"c":"660237","n":"审计、法律中介服务费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660240","n":"商标注册及使用费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660247","n":"会员费及代理费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660254","n":"其他租赁费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660255","n":"团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280013","n":"集团内/办公费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280036","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280055","n":"集团内/团队建设费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660290","n":"未取得发票的费用","b":2000.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660280015","n":"集团内/差旅费","b":4355.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660249","n":"软件及维护费","b":0.0,"a":0.0,"r":"管理费用","d":[]},{"c":"660113","n":"办公费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660115","n":"差旅费","b":14576.2,"a":0.0,"r":"销售费用","d":[]},{"c":"660118","n":"业务招待费","b":9707.96,"a":0.0,"r":"销售费用","d":[]},{"c":"660125","n":"IT运维费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660130","n":"宣传费","b":48173.74,"a":0.0,"r":"销售费用","d":[]},{"c":"660153","n":"咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660156","n":"团队建设费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660164","n":"代付税费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180015","n":"集团内/差旅费","b":1832.7,"a":0.0,"r":"销售费用","d":[]},{"c":"660180018","n":"集团内/业务招待费","b":1000.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660180053","n":"集团内/咨询费","b":0.0,"a":0.0,"r":"销售费用","d":[]},{"c":"660190","n":"未取得发票的费用","b":0.0,"a":0.0,"r":"销售费用","d":[]},],};
+const GL_ACCT_DEPT = {"660214|||总经办":[{date:"2026-01-02",summary:"陈思敏付中国电信股份有限公司广州分公司12月电信2030.67元（、精益）",debit:1319.02,credit:0.0},{date:"2026-02-11",summary:"陈思敏付广州顺丰速运有限公司2026年1月顺丰快递费（），金额为36元",debit:33.96,credit:0.0}],"660214|||综合管理部":[{date:"2026-01-09",summary:"陈思敏付广东京邦达供应链科技有限公司12月402.5元（、精益）",debit:221.23,credit:0.0},{date:"2026-02-11",summary:"陈思敏付广东京邦达供应链科技有限公司26年1月京东492元（、精益）",debit:333.02,credit:0.0},{date:"2026-03-11",summary:"陈思敏付广东京邦达供应链科技有限公司26年2月运费80元（、精益）",debit:69.81,credit:0.0},{date:"2026-02-28",summary:"扣通讯费用",debit:-48.15,credit:0.0},{date:"2026-02-25",summary:"陈思敏付中国电信股份有限公司广州分公司2026年1月、精益电信1922.44元（已托扣，不用再付）",debit:1224.8,credit:0.0},{date:"2026-01-31",summary:"扣通讯费用",debit:-47.85,credit:0.0}],"660280015|||项目实施部":[{date:"2026-01-22",summary:"王梦雪付索菲亚家居股份有限公司2025年12月付索菲亚家居餐票",debit:480.0,credit:0.0}],"660280018|||综合管理部":[{date:"2026-01-27",summary:"罗芷珊付索菲亚家居股份有限公司12月付索菲亚家居非生产性物料费",debit:315.0,credit:0.0}],"660280036|||综合管理部":[{date:"2026-01-27",summary:"罗芷珊付广州生活服务有限公司202512付生活餐费",debit:160.0,credit:0.0},{date:"2026-03-05",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:160.0,credit:0.0},{date:"2026-02-28",summary:"生活2月开票预提",debit:160.0,credit:0.0}],"660225|||总经办":[{date:"2026-02-03",summary:"郭启仪付广州晶东贸易有限公司202601晶东物资款",debit:803.93,credit:0.0}],"660225|||系统研发部":[{date:"2026-02-03",summary:"郭启仪付广州晶东贸易有限公司202601物IT运维费用",debit:768.16,credit:0.0}],"660118|||售前服务部":[{date:"2026-02-26",summary:"曹土如付广州晶东贸易有限公司招待申购酒水款（慧采费用支付）",debit:10102.98,credit:0.0}],"660180018|||售前服务部":[{date:"2026-03-05",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:1534.7,credit:0.0},{date:"2026-02-28",summary:"生活2月开票预提",debit:1534.7,credit:0.0}],"660280018|||项目实施部":[{date:"2026-03-05",summary:"罗芷珊付索菲亚家居股份有限公司2026年1月付索菲亚家居餐费",debit:795.0,credit:0.0},{date:"2026-02-28",summary:"索菲亚家居2月开票预提",debit:795.0,credit:0.0}],"660215|||总经办":[{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:533.56,credit:0.0}],"660213|||综合管理部":[{date:"2026-02-03",summary:"陈艳培付互盛（中国）有限公司202512-202601打印机租赁款",debit:982.92,credit:0.0},{date:"2026-01-13",summary:"付曹土如接待室桶装水费用报销",debit:336.0,credit:0.0}],"660236|||综合管理部":[{date:"2026-01-07",summary:"付周盈盈职业、环境体系审核老师交通费用",debit:1573.19,credit:0.0}],"660240|||综合管理部":[{date:"2026-01-30",summary:"李蕾付深圳国家知识产权局专利代办处冲1季度专利年费3300元",debit:3300.0,credit:0.0}],"660280055|||综合管理部":[{date:"2026-02-28",summary:"生活2月开票预提",debit:2853.1,credit:0.0}],"660215|||系统实施部":[{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:10.38,credit:0.0},{date:"2026-03-18",summary:"付林翠报销林翠2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-18",summary:"付林翠报销林翠2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:459.43,credit:0.0},{date:"2026-03-18",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:896.18,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:4045.39,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0},{date:"2026-01-27",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市伙食补助费",debit:120.0,credit:0.0},{date:"2026-01-27",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市交通费用",debit:461.35,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:499.35,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:789.2,credit:0.0},{date:"2026-03-09",summary:"付陈嘉豪报销陈嘉豪2026-02-25至2026-02-28黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:567.54,credit:0.0},{date:"2026-03-18",summary:"付陈嘉豪报销陈嘉豪2026-03-07至2026-03-11黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-02-06",summary:"付陈嘉豪报销陈嘉豪2026-01-04至2026-01-31清远市伙食补助费",debit:1200.0,credit:0.0},{date:"2026-01-27",summary:"付陈嘉豪报销陈嘉豪2025-12-22至2025-12-31清远市伙食补助费",debit:600.0,credit:0.0},{date:"2026-03-09",summary:"付周雍琛报销周雍琛2026-02-01至2026-02-09清远市伙食补助费",debit:540.0,credit:0.0},{date:"2026-01-07",summary:"付李文杰报销李文杰2025-12-04至2025-12-31清远市伙食补助费",debit:1680.0,credit:0.0},{date:"2026-01-07",summary:"付周雍琛报销周雍琛2025-12-01至2025-12-31清远市伙食补助费",debit:1800.0,credit:0.0},{date:"2026-02-03",summary:"付李文杰报销李文杰2026-01-04至2026-01-29清远市伙食补助费",debit:1560.0,credit:0.0},{date:"2026-02-03",summary:"付周雍琛报销周雍琛2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:24.9,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:104.85,credit:0.0}],"660215|||项目实施部":[{date:"2026-02-03",summary:"付任永胜报销任永胜2026-01-07至2026-01-07黄冈市交通费用",debit:29.36,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:69.99,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:981.86,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:541.49,credit:0.0},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-26至2025-12-26嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市伙食补助费",debit:140.0,credit:0.0},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市交通费用",debit:211.49,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:124.11,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:852.69,credit:0.0},{date:"2026-02-03",summary:"付任永胜报销任永胜2025-12-22至2025-12-22黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:28.57,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:312.06,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:692.01,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:954.34,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1492.45,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:2284.83,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1652.36,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-03",summary:"付任永胜报销任永胜2025-12-29至2025-12-31成都市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:75.17,credit:0.0},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程火车票款",debit:49.72,credit:0.0},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程机票款",debit:510.86,credit:0.0},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:37.79,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:47.84,credit:0.0},{date:"2026-03-18",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:804.44,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:908.47,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-31至2025-12-31佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-23至2026-01-23清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-21至2026-01-22清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-05至2026-01-20清远市伙食补助费",debit:900.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-01-30至2026-01-30清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2025-12-19至2025-12-19清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2025-12-10至2025-12-10清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-05至2026-02-06清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-02-02至2026-02-03清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-29至2025-12-30清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-15至2025-12-17清远市伙食补助费",debit:180.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-21至2026-01-24清远市伙食补助费",debit:240.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-26至2026-01-29清远市伙食补助费",debit:240.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-04至2026-01-09清远市伙食补助费",debit:360.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-12至2026-01-17清远市伙食补助费",debit:360.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-19至2025-12-27清远市伙食补助费",debit:540.0,credit:0.0},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-03至2025-12-13清远市伙食补助费",debit:660.0,credit:0.0},{date:"2026-02-09",summary:"付韩炜报销韩炜2025-12-01至2025-12-27清远市伙食补助费",debit:1620.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:119.81,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:115.39,credit:0.0}],"660290|||项目实施部":[{date:"2026-01-07",summary:"付曾德胜客户宿舍住宿水电费报销",debit:1400.0,credit:0.0},{date:"2026-01-22",summary:"付曾德胜志华项目水电费报销-客户宿舍住宿水电费",debit:2500.0,credit:0.0}],"660215|||系统研发部":[{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-31嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-09-01至2025-09-11嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-22嘉兴市其他",debit:270.0,credit:0.0},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-09-18至2025-09-18嘉兴市交通费用",debit:293.88,credit:0.0},{date:"2026-02-09",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市交通费用",debit:37.1,credit:0.0},{date:"2026-02-09",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市伙食补助费",debit:140.0,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:854.79,credit:0.0},{date:"2026-03-11",summary:"付李伟敏报销李伟敏2026-03-01至2026-03-09黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-09",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-09",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市交通费用",debit:155.47,credit:0.0},{date:"2026-03-11",summary:"付李伟敏报销李伟敏2026-03-10至2026-03-10黄冈市交通费用",debit:174.48,credit:0.0},{date:"2026-01-07",summary:"付李伟敏报销李伟敏2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-27",summary:"付李伟敏报销李伟敏2026-02-11至2026-02-11黄冈市交通费用",debit:382.14,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0},{date:"2026-01-27",summary:"付李伟敏报销李伟敏2026-01-25至2026-01-25黄冈市交通费用",debit:195.04,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:2225.88,credit:0.0},{date:"2026-02-09",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-09",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市交通费用",debit:153.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3624.28,credit:0.0},{date:"2026-03-09",summary:"付黎国飘报销黎国飘2026-02-24至2026-02-28廊坊市伙食补助费",debit:350.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:164.48,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1351.9,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1972.69,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:523.15,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:724.98,credit:0.0},{date:"2026-01-27",summary:"付刘建武报销刘建武2026-01-02至2026-01-09成都市伙食补助费",debit:140.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:35.91,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1183.7,credit:0.0},{date:"2026-03-09",summary:"付黄金海报销黄金海2026-02-26至2026-02-28清远市交通费用",debit:78.7,credit:0.0},{date:"2026-03-09",summary:"付黄金海报销黄金海2026-03-01至2026-03-03清远市交通费用",debit:81.9,credit:0.0},{date:"2026-01-07",summary:"付黄金海报销黄金海2025-12-24至2025-12-31清远市伙食补助费",debit:480.0,credit:0.0},{date:"2026-01-07",summary:"付郑天瑞报销郑天瑞2025-12-01至2025-12-17清远市伙食补助费",debit:1020.0,credit:0.0},{date:"2026-01-07",summary:"付黄金海报销黄金海2025-12-01至2025-12-21清远市伙食补助费",debit:1260.0,credit:0.0},{date:"2026-01-07",summary:"付陈泽升报销陈泽升2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0},{date:"2026-02-27",summary:"付陈金辉报销陈金辉2026-02-09至2026-02-09清远市交通费用",debit:382.5,credit:0.0},{date:"2026-02-27",summary:"付陈金辉报销陈金辉2026-02-02至2026-02-08清远市伙食补助费",debit:420.0,credit:0.0},{date:"2026-02-06",summary:"付陈金辉报销陈金辉2026-01-20至2026-01-29清远市伙食补助费",debit:600.0,credit:0.0},{date:"2026-02-06",summary:"付陈泽升报销陈泽升2026-01-04至2026-01-23清远市伙食补助费",debit:1200.0,credit:0.0},{date:"2026-02-03",summary:"付潘智耀报销潘智耀2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:240.37,credit:0.0},{date:"2026-01-27",summary:"付陈金辉报销陈金辉2026-01-23至2026-01-23清远市交通费用",debit:54.2,credit:0.0},{date:"2026-01-27",summary:"付陈金辉报销陈金辉2026-01-04至2026-01-16清远市伙食补助费",debit:780.0,credit:0.0},{date:"2026-01-13",summary:"付陈金辉报销陈金辉2026-01-06至2026-01-06清远市交通费用",debit:47.2,credit:0.0},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-12-15至2025-12-31清远市伙食补助费",debit:1020.0,credit:0.0},{date:"2026-01-13",summary:"付陈金辉报销陈金辉2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0},{date:"2026-03-18",summary:"付陈泽升报销陈泽升2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:120.84,credit:0.0},{date:"2026-01-07",summary:"付袁振凯报销袁振凯2025-12-01至2025-12-11东莞市伙食补助费",debit:770.0,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:89.77,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:42.33,credit:0.0}],"660115|||售前服务部":[{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:1632.35,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:420.76,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:1370.29,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:2883.97,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:5742.14,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:7453.75,credit:0.0},{date:"2026-01-27",summary:"付戚家灿出差补贴",debit:70.0,credit:0.0},{date:"2026-01-27",summary:"付黎永裕出差补贴",debit:160.0,credit:0.0},{date:"2026-01-27",summary:"付伍广成出差补贴",debit:700.0,credit:0.0},{date:"2026-01-27",summary:"付戚家灿出差补贴",debit:1360.0,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:913.97,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:1613.79,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:6199.05,credit:0.0},{date:"2026-01-22",summary:"付王金豪报销王金豪2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-07",summary:"付王金豪报销王金豪2025-12-25至2025-12-25佛山市伙食补助费",debit:35.0,credit:0.0},{date:"2026-02-03",summary:"付刘家盛报销刘家盛2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:108.3,credit:0.0},{date:"2026-03-11",summary:"付顾国良报销顾国良2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",summary:"付顾国良报销顾国良2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28广州市交通费用",debit:294.5,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:223.37,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:59.2,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:446.03,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.47,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1431.51,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3759.61,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:167.5,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:44.4,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:334.52,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.4,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1073.64,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:162.45,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:272.94,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:29.59,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:223.01,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:2275.84,credit:0.0},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程酒店款",debit:179.25,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:55.85,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:14.79,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:111.5,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:357.86,credit:0.0},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-07至2026-01-07清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市住宿费",debit:119.0,credit:0.0},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:107.87,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:146.49,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:297.52,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:851.89,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1486.66,credit:0.0},{date:"2026-01-07",summary:"付顾国良报销顾国良2025-12-26至2025-12-28临沂市伙食补助费",debit:210.0,credit:0.0},{date:"2026-01-07",summary:"付顾国良报销顾国良2025-12-26至2025-12-29临沂市交通费用",debit:421.49,credit:0.0},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:100.65,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:543.44,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:908.47,credit:0.0},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:954.4,credit:0.0},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月酒店款",debit:219.0,credit:0.0},{date:"2026-02-11",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-11",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市交通费用",debit:218.38,credit:0.0},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:68.02,credit:0.0}],};
+const GL_ACCT_MONTH = {"660214|||1":[{date:"2026-01-02",dept_name:"总经办",summary:"陈思敏付中国电信股份有限公司广州分公司12月电信2030.67元（、精益）",debit:1319.02,credit:0.0},{date:"2026-01-09",dept_name:"综合管理部",summary:"陈思敏付广东京邦达供应链科技有限公司12月402.5元（、精益）",debit:221.23,credit:0.0},{date:"2026-01-31",dept_name:"综合管理部",summary:"扣通讯费用",debit:-47.85,credit:0.0}],"660280015|||1":[{date:"2026-01-22",dept_name:"项目实施部",summary:"王梦雪付索菲亚家居股份有限公司2025年12月付索菲亚家居餐票",debit:480.0,credit:0.0}],"660280018|||1":[{date:"2026-01-27",dept_name:"综合管理部",summary:"罗芷珊付索菲亚家居股份有限公司12月付索菲亚家居非生产性物料费",debit:315.0,credit:0.0}],"660280036|||1":[{date:"2026-01-27",dept_name:"综合管理部",summary:"罗芷珊付广州生活服务有限公司202512付生活餐费",debit:160.0,credit:0.0}],"660225|||2":[{date:"2026-02-03",dept_name:"总经办",summary:"郭启仪付广州晶东贸易有限公司202601晶东物资款",debit:803.93,credit:0.0},{date:"2026-02-03",dept_name:"系统研发部",summary:"郭启仪付广州晶东贸易有限公司202601物IT运维费用",debit:768.16,credit:0.0}],"660214|||2":[{date:"2026-02-11",dept_name:"综合管理部",summary:"陈思敏付广东京邦达供应链科技有限公司26年1月京东492元（、精益）",debit:333.02,credit:0.0},{date:"2026-02-11",dept_name:"总经办",summary:"陈思敏付广州顺丰速运有限公司2026年1月顺丰快递费（），金额为36元",debit:33.96,credit:0.0},{date:"2026-02-28",dept_name:"综合管理部",summary:"扣通讯费用",debit:-48.15,credit:0.0},{date:"2026-02-25",dept_name:"综合管理部",summary:"陈思敏付中国电信股份有限公司广州分公司2026年1月、精益电信1922.44元（已托扣，不用再付）",debit:1224.8,credit:0.0}],"660118|||2":[{date:"2026-02-26",dept_name:"售前服务部",summary:"曹土如付广州晶东贸易有限公司招待申购酒水款（慧采费用支付）",debit:10102.98,credit:0.0}],"660180018|||3":[{date:"2026-03-05",dept_name:"售前服务部",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:1534.7,credit:0.0}],"660280036|||3":[{date:"2026-03-05",dept_name:"综合管理部",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:160.0,credit:0.0}],"660280018|||3":[{date:"2026-03-05",dept_name:"项目实施部",summary:"罗芷珊付索菲亚家居股份有限公司2026年1月付索菲亚家居餐费",debit:795.0,credit:0.0}],"660214|||3":[{date:"2026-03-11",dept_name:"综合管理部",summary:"陈思敏付广东京邦达供应链科技有限公司26年2月运费80元（、精益）",debit:69.81,credit:0.0}],"660215|||3":[{date:"2026-03-13",dept_name:"总经办",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:533.56,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:10.38,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"付林翠报销林翠2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"付林翠报销林翠2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:459.43,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:896.18,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:4045.39,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:499.35,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:789.2,credit:0.0},{date:"2026-03-09",dept_name:"系统实施部",summary:"付陈嘉豪报销陈嘉豪2026-02-25至2026-02-28黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"系统实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:567.54,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"付陈嘉豪报销陈嘉豪2026-03-07至2026-03-11黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-09",dept_name:"系统实施部",summary:"付周雍琛报销周雍琛2026-02-01至2026-02-09清远市伙食补助费",debit:540.0,credit:0.0},{date:"2026-03-18",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:24.9,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:541.49,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:692.01,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:954.34,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1492.45,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:2284.83,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1652.36,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:37.79,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:47.84,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:804.44,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:908.47,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2026-01-30至2026-01-30清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2025-12-19至2025-12-19清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2025-12-10至2025-12-10清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-13",dept_name:"项目实施部",summary:"付陈骁报销陈骁2026-02-05至2026-02-06清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-03-18",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:119.81,credit:0.0},{date:"2026-03-11",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-03-01至2026-03-09黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-09",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-09",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市交通费用",debit:155.47,credit:0.0},{date:"2026-03-11",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-03-10至2026-03-10黄冈市交通费用",debit:174.48,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:2225.88,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3624.28,credit:0.0},{date:"2026-03-09",dept_name:"系统研发部",summary:"付黎国飘报销黎国飘2026-02-24至2026-02-28廊坊市伙食补助费",debit:350.0,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:164.48,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1351.9,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1972.69,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:35.91,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1183.7,credit:0.0},{date:"2026-03-09",dept_name:"系统研发部",summary:"付黄金海报销黄金海2026-02-26至2026-02-28清远市交通费用",debit:78.7,credit:0.0},{date:"2026-03-09",dept_name:"系统研发部",summary:"付黄金海报销黄金海2026-03-01至2026-03-03清远市交通费用",debit:81.9,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"付陈泽升报销陈泽升2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-18",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:120.84,credit:0.0}],"660213|||2":[{date:"2026-02-03",dept_name:"综合管理部",summary:"陈艳培付互盛（中国）有限公司202512-202601打印机租赁款",debit:982.92,credit:0.0}],"660213|||1":[{date:"2026-01-13",dept_name:"综合管理部",summary:"付曹土如接待室桶装水费用报销",debit:336.0,credit:0.0}],"660236|||1":[{date:"2026-01-07",dept_name:"综合管理部",summary:"付周盈盈职业、环境体系审核老师交通费用",debit:1573.19,credit:0.0}],"660240|||1":[{date:"2026-01-30",dept_name:"综合管理部",summary:"李蕾付深圳国家知识产权局专利代办处冲1季度专利年费3300元",debit:3300.0,credit:0.0}],"660280036|||2":[{date:"2026-02-28",dept_name:"综合管理部",summary:"生活2月开票预提",debit:160.0,credit:0.0}],"660280055|||2":[{date:"2026-02-28",dept_name:"综合管理部",summary:"生活2月开票预提",debit:2853.1,credit:0.0}],"660215|||1":[{date:"2026-01-27",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0},{date:"2026-01-27",dept_name:"系统实施部",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市伙食补助费",debit:120.0,credit:0.0},{date:"2026-01-27",dept_name:"系统实施部",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市交通费用",debit:461.35,credit:0.0},{date:"2026-01-27",dept_name:"系统实施部",summary:"付陈嘉豪报销陈嘉豪2025-12-22至2025-12-31清远市伙食补助费",debit:600.0,credit:0.0},{date:"2026-01-07",dept_name:"系统实施部",summary:"付李文杰报销李文杰2025-12-04至2025-12-31清远市伙食补助费",debit:1680.0,credit:0.0},{date:"2026-01-07",dept_name:"系统实施部",summary:"付周雍琛报销周雍琛2025-12-01至2025-12-31清远市伙食补助费",debit:1800.0,credit:0.0},{date:"2026-01-27",dept_name:"系统实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0},{date:"2026-01-31",dept_name:"系统实施部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:104.85,credit:0.0},{date:"2026-01-27",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:69.99,credit:0.0},{date:"2026-01-27",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:981.86,credit:0.0},{date:"2026-01-31",dept_name:"项目实施部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:124.11,credit:0.0},{date:"2026-01-20",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:852.69,credit:0.0},{date:"2026-01-20",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:28.57,credit:0.0},{date:"2026-01-27",dept_name:"项目实施部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:312.06,credit:0.0},{date:"2026-01-31",dept_name:"项目实施部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:75.17,credit:0.0},{date:"2026-01-15",dept_name:"项目实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程火车票款",debit:49.72,credit:0.0},{date:"2026-01-15",dept_name:"项目实施部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程机票款",debit:510.86,credit:0.0},{date:"2026-01-31",dept_name:"项目实施部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:115.39,credit:0.0},{date:"2026-01-15",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-31嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-15",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2025-09-01至2025-09-11嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-15",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-22嘉兴市其他",debit:270.0,credit:0.0},{date:"2026-01-15",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2025-09-18至2025-09-18嘉兴市交通费用",debit:293.88,credit:0.0},{date:"2026-01-20",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:854.79,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-01-25至2026-01-25黄冈市交通费用",debit:195.04,credit:0.0},{date:"2026-01-20",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:523.15,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:724.98,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"付刘建武报销刘建武2026-01-02至2026-01-09成都市伙食补助费",debit:140.0,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付黄金海报销黄金海2025-12-24至2025-12-31清远市伙食补助费",debit:480.0,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付郑天瑞报销郑天瑞2025-12-01至2025-12-17清远市伙食补助费",debit:1020.0,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付黄金海报销黄金海2025-12-01至2025-12-21清远市伙食补助费",debit:1260.0,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付陈泽升报销陈泽升2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0},{date:"2026-01-20",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:240.37,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-01-23至2026-01-23清远市交通费用",debit:54.2,credit:0.0},{date:"2026-01-27",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-01-04至2026-01-16清远市伙食补助费",debit:780.0,credit:0.0},{date:"2026-01-13",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-01-06至2026-01-06清远市交通费用",debit:47.2,credit:0.0},{date:"2026-01-15",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2025-12-15至2025-12-31清远市伙食补助费",debit:1020.0,credit:0.0},{date:"2026-01-13",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0},{date:"2026-01-07",dept_name:"系统研发部",summary:"付袁振凯报销袁振凯2025-12-01至2025-12-11东莞市伙食补助费",debit:770.0,credit:0.0},{date:"2026-01-31",dept_name:"系统研发部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:89.77,credit:0.0},{date:"2026-01-20",dept_name:"系统研发部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:42.33,credit:0.0}],"660215|||2":[{date:"2026-02-06",dept_name:"系统实施部",summary:"付陈嘉豪报销陈嘉豪2026-01-04至2026-01-31清远市伙食补助费",debit:1200.0,credit:0.0},{date:"2026-02-03",dept_name:"系统实施部",summary:"付李文杰报销李文杰2026-01-04至2026-01-29清远市伙食补助费",debit:1560.0,credit:0.0},{date:"2026-02-03",dept_name:"系统实施部",summary:"付周雍琛报销周雍琛2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付任永胜报销任永胜2026-01-07至2026-01-07黄冈市交通费用",debit:29.36,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付王志勇报销王志勇2025-12-26至2025-12-26嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市伙食补助费",debit:140.0,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市交通费用",debit:211.49,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付任永胜报销任永胜2025-12-22至2025-12-22黄冈市伙食补助费",debit:60.0,credit:0.0},{date:"2026-02-03",dept_name:"项目实施部",summary:"付任永胜报销任永胜2025-12-29至2025-12-31成都市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2025-12-31至2025-12-31佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-09",dept_name:"项目实施部",summary:"付韩炜报销韩炜2026-01-23至2026-01-23清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-02-09",dept_name:"项目实施部",summary:"付韩炜报销韩炜2026-01-21至2026-01-22清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-09",dept_name:"项目实施部",summary:"付韩炜报销韩炜2026-01-05至2026-01-20清远市伙食补助费",debit:900.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2026-02-02至2026-02-03清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2025-12-29至2025-12-30清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2025-12-15至2025-12-17清远市伙食补助费",debit:180.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2026-01-21至2026-01-24清远市伙食补助费",debit:240.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2026-01-26至2026-01-29清远市伙食补助费",debit:240.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2026-01-04至2026-01-09清远市伙食补助费",debit:360.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2026-01-12至2026-01-17清远市伙食补助费",debit:360.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2025-12-19至2025-12-27清远市伙食补助费",debit:540.0,credit:0.0},{date:"2026-02-26",dept_name:"项目实施部",summary:"付曾德胜报销曾德胜2025-12-03至2025-12-13清远市伙食补助费",debit:660.0,credit:0.0},{date:"2026-02-09",dept_name:"项目实施部",summary:"付韩炜报销韩炜2025-12-01至2025-12-27清远市伙食补助费",debit:1620.0,credit:0.0},{date:"2026-02-09",dept_name:"系统研发部",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市交通费用",debit:37.1,credit:0.0},{date:"2026-02-09",dept_name:"系统研发部",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市伙食补助费",debit:140.0,credit:0.0},{date:"2026-02-27",dept_name:"系统研发部",summary:"付李伟敏报销李伟敏2026-02-11至2026-02-11黄冈市交通费用",debit:382.14,credit:0.0},{date:"2026-02-09",dept_name:"系统研发部",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-09",dept_name:"系统研发部",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市交通费用",debit:153.0,credit:0.0},{date:"2026-02-27",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-02-09至2026-02-09清远市交通费用",debit:382.5,credit:0.0},{date:"2026-02-27",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-02-02至2026-02-08清远市伙食补助费",debit:420.0,credit:0.0},{date:"2026-02-06",dept_name:"系统研发部",summary:"付陈金辉报销陈金辉2026-01-20至2026-01-29清远市伙食补助费",debit:600.0,credit:0.0},{date:"2026-02-06",dept_name:"系统研发部",summary:"付陈泽升报销陈泽升2026-01-04至2026-01-23清远市伙食补助费",debit:1200.0,credit:0.0},{date:"2026-02-03",dept_name:"系统研发部",summary:"付潘智耀报销潘智耀2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0}],"660280018|||2":[{date:"2026-02-28",dept_name:"项目实施部",summary:"索菲亚家居2月开票预提",debit:795.0,credit:0.0}],"660290|||1":[{date:"2026-01-07",dept_name:"项目实施部",summary:"付曾德胜客户宿舍住宿水电费报销",debit:1400.0,credit:0.0},{date:"2026-01-22",dept_name:"项目实施部",summary:"付曾德胜志华项目水电费报销-客户宿舍住宿水电费",debit:2500.0,credit:0.0}],"660115|||1":[{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:1632.35,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:420.76,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:1370.29,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:2883.97,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:5742.14,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:7453.75,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"付戚家灿出差补贴",debit:70.0,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"付黎永裕出差补贴",debit:160.0,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"付伍广成出差补贴",debit:700.0,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"付戚家灿出差补贴",debit:1360.0,credit:0.0},{date:"2026-01-22",dept_name:"售前服务部",summary:"付王金豪报销王金豪2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-01-07",dept_name:"售前服务部",summary:"付王金豪报销王金豪2025-12-25至2025-12-25佛山市伙食补助费",debit:35.0,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:223.37,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:59.2,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:446.03,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.47,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1431.51,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:167.5,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:44.4,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:334.52,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.4,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1073.64,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:272.94,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:29.59,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:223.01,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:2275.84,credit:0.0},{date:"2026-01-15",dept_name:"售前服务部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程酒店款",debit:179.25,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:55.85,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:14.79,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:111.5,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:357.86,credit:0.0},{date:"2026-01-22",dept_name:"售前服务部",summary:"付王金豪报销王金豪2026-01-07至2026-01-07清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-01-22",dept_name:"售前服务部",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市住宿费",debit:119.0,credit:0.0},{date:"2026-01-22",dept_name:"售前服务部",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市伙食补助费",debit:120.0,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0},{date:"2026-01-27",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:146.49,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:297.52,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:851.89,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1486.66,credit:0.0},{date:"2026-01-07",dept_name:"售前服务部",summary:"付顾国良报销顾国良2025-12-26至2025-12-28临沂市伙食补助费",debit:210.0,credit:0.0},{date:"2026-01-07",dept_name:"售前服务部",summary:"付顾国良报销顾国良2025-12-26至2025-12-29临沂市交通费用",debit:421.49,credit:0.0},{date:"2026-01-31",dept_name:"售前服务部",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:100.65,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:543.44,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:908.47,credit:0.0},{date:"2026-01-20",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:954.4,credit:0.0}],"660115|||3":[{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:913.97,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:1613.79,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:6199.05,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:108.3,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付顾国良报销顾国良2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付方壮秋报销方壮秋2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付顾国良报销顾国良2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付方壮秋报销方壮秋2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付徐锦富报销徐锦富2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28广州市交通费用",debit:294.5,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3759.61,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:162.45,credit:0.0},{date:"2026-03-11",dept_name:"售前服务部",summary:"付方壮秋报销方壮秋2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:107.87,credit:0.0},{date:"2026-03-13",dept_name:"售前服务部",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月酒店款",debit:219.0,credit:0.0},{date:"2026-03-18",dept_name:"售前服务部",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:68.02,credit:0.0}],"660115|||2":[{date:"2026-02-03",dept_name:"售前服务部",summary:"付刘家盛报销刘家盛2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0},{date:"2026-02-11",dept_name:"售前服务部",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市伙食补助费",debit:120.0,credit:0.0},{date:"2026-02-11",dept_name:"售前服务部",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市交通费用",debit:218.38,credit:0.0}],"660180018|||2":[{date:"2026-02-28",dept_name:"售前服务部",summary:"生活2月开票预提",debit:1534.7,credit:0.0}],};
+const GL_ACCT = {"660214":[{date:"2026-01-02",summary:"陈思敏付中国电信股份有限公司广州分公司12月电信2030.67元（、精益）",debit:1319.02,credit:0.0,dept:"总经办"},{date:"2026-02-11",summary:"陈思敏付广州顺丰速运有限公司2026年1月顺丰快递费（），金额为36元",debit:33.96,credit:0.0,dept:"总经办"},{date:"2026-01-09",summary:"陈思敏付广东京邦达供应链科技有限公司12月402.5元（、精益）",debit:221.23,credit:0.0,dept:"综合管理部"},{date:"2026-02-11",summary:"陈思敏付广东京邦达供应链科技有限公司26年1月京东492元（、精益）",debit:333.02,credit:0.0,dept:"综合管理部"},{date:"2026-03-11",summary:"陈思敏付广东京邦达供应链科技有限公司26年2月运费80元（、精益）",debit:69.81,credit:0.0,dept:"综合管理部"},{date:"2026-02-28",summary:"扣通讯费用",debit:-48.15,credit:0.0,dept:"综合管理部"},{date:"2026-02-25",summary:"陈思敏付中国电信股份有限公司广州分公司2026年1月、精益电信1922.44元（已托扣，不用再付）",debit:1224.8,credit:0.0,dept:"综合管理部"},{date:"2026-01-31",summary:"扣通讯费用",debit:-47.85,credit:0.0,dept:"综合管理部"}],"660280015":[{date:"2026-01-22",summary:"王梦雪付索菲亚家居股份有限公司2025年12月付索菲亚家居餐票",debit:480.0,credit:0.0,dept:"项目实施部"}],"660280018":[{date:"2026-01-27",summary:"罗芷珊付索菲亚家居股份有限公司12月付索菲亚家居非生产性物料费",debit:315.0,credit:0.0,dept:"综合管理部"},{date:"2026-03-05",summary:"罗芷珊付索菲亚家居股份有限公司2026年1月付索菲亚家居餐费",debit:795.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-28",summary:"索菲亚家居2月开票预提",debit:795.0,credit:0.0,dept:"项目实施部"}],"660280036":[{date:"2026-01-27",summary:"罗芷珊付广州生活服务有限公司202512付生活餐费",debit:160.0,credit:0.0,dept:"综合管理部"},{date:"2026-03-05",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:160.0,credit:0.0,dept:"综合管理部"},{date:"2026-02-28",summary:"生活2月开票预提",debit:160.0,credit:0.0,dept:"综合管理部"}],"660225":[{date:"2026-02-03",summary:"郭启仪付广州晶东贸易有限公司202601晶东物资款",debit:803.93,credit:0.0,dept:"总经办"},{date:"2026-02-03",summary:"郭启仪付广州晶东贸易有限公司202601物IT运维费用",debit:768.16,credit:0.0,dept:"系统研发部"}],"660118":[{date:"2026-02-26",summary:"曹土如付广州晶东贸易有限公司招待申购酒水款（慧采费用支付）",debit:10102.98,credit:0.0,dept:"售前服务部"}],"660180018":[{date:"2026-03-05",summary:"罗芷珊付广州生活服务有限公司2026年1月付生活餐费",debit:1534.7,credit:0.0,dept:"售前服务部"},{date:"2026-02-28",summary:"生活2月开票预提",debit:1534.7,credit:0.0,dept:"售前服务部"}],"660215":[{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:533.56,credit:0.0,dept:"总经办"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:10.38,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"付林翠报销林翠2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"付林翠报销林翠2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:459.43,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:896.18,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:4045.39,credit:0.0,dept:"系统实施部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0,dept:"系统实施部"},{date:"2026-01-27",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市伙食补助费",debit:120.0,credit:0.0,dept:"系统实施部"},{date:"2026-01-27",summary:"付李安报销李安2026-01-16至2026-01-23黄冈市交通费用",debit:461.35,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:499.35,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:789.2,credit:0.0,dept:"系统实施部"},{date:"2026-03-09",summary:"付陈嘉豪报销陈嘉豪2026-02-25至2026-02-28黄冈市伙食补助费",debit:60.0,credit:0.0,dept:"系统实施部"},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:567.54,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"付陈嘉豪报销陈嘉豪2026-03-07至2026-03-11黄冈市伙食补助费",debit:60.0,credit:0.0,dept:"系统实施部"},{date:"2026-02-06",summary:"付陈嘉豪报销陈嘉豪2026-01-04至2026-01-31清远市伙食补助费",debit:1200.0,credit:0.0,dept:"系统实施部"},{date:"2026-01-27",summary:"付陈嘉豪报销陈嘉豪2025-12-22至2025-12-31清远市伙食补助费",debit:600.0,credit:0.0,dept:"系统实施部"},{date:"2026-03-09",summary:"付周雍琛报销周雍琛2026-02-01至2026-02-09清远市伙食补助费",debit:540.0,credit:0.0,dept:"系统实施部"},{date:"2026-01-07",summary:"付李文杰报销李文杰2025-12-04至2025-12-31清远市伙食补助费",debit:1680.0,credit:0.0,dept:"系统实施部"},{date:"2026-01-07",summary:"付周雍琛报销周雍琛2025-12-01至2025-12-31清远市伙食补助费",debit:1800.0,credit:0.0,dept:"系统实施部"},{date:"2026-02-03",summary:"付李文杰报销李文杰2026-01-04至2026-01-29清远市伙食补助费",debit:1560.0,credit:0.0,dept:"系统实施部"},{date:"2026-02-03",summary:"付周雍琛报销周雍琛2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0,dept:"系统实施部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0,dept:"系统实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:24.9,credit:0.0,dept:"系统实施部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:104.85,credit:0.0,dept:"系统实施部"},{date:"2026-02-03",summary:"付任永胜报销任永胜2026-01-07至2026-01-07黄冈市交通费用",debit:29.36,credit:0.0,dept:"项目实施部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:69.99,credit:0.0,dept:"项目实施部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:981.86,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:541.49,credit:0.0,dept:"项目实施部"},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-26至2025-12-26嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市伙食补助费",debit:140.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-03",summary:"付王志勇报销王志勇2025-12-17至2025-12-19嘉兴市交通费用",debit:211.49,credit:0.0,dept:"项目实施部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:124.11,credit:0.0,dept:"项目实施部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:852.69,credit:0.0,dept:"项目实施部"},{date:"2026-02-03",summary:"付任永胜报销任永胜2025-12-22至2025-12-22黄冈市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:28.57,credit:0.0,dept:"项目实施部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:312.06,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:692.01,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:954.34,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1492.45,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:2284.83,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1652.36,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-03",summary:"付任永胜报销任永胜2025-12-29至2025-12-31成都市伙食补助费",debit:70.0,credit:0.0,dept:"项目实施部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:75.17,credit:0.0,dept:"项目实施部"},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程火车票款",debit:49.72,credit:0.0,dept:"项目实施部"},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程机票款",debit:510.86,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月火车票款",debit:37.79,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:47.84,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月付携程机票款",debit:804.44,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:908.47,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-31至2025-12-31佛山市伙食补助费",debit:70.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-23至2026-01-23清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-21至2026-01-22清远市伙食补助费",debit:120.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-09",summary:"付韩炜报销韩炜2026-01-05至2026-01-20清远市伙食补助费",debit:900.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-01-30至2026-01-30清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2025-12-19至2025-12-19清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2025-12-10至2025-12-10清远市伙食补助费",debit:60.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-13",summary:"付陈骁报销陈骁2026-02-05至2026-02-06清远市伙食补助费",debit:120.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-02-02至2026-02-03清远市伙食补助费",debit:120.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-29至2025-12-30清远市伙食补助费",debit:120.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-15至2025-12-17清远市伙食补助费",debit:180.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-21至2026-01-24清远市伙食补助费",debit:240.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-26至2026-01-29清远市伙食补助费",debit:240.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-04至2026-01-09清远市伙食补助费",debit:360.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2026-01-12至2026-01-17清远市伙食补助费",debit:360.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-19至2025-12-27清远市伙食补助费",debit:540.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-26",summary:"付曾德胜报销曾德胜2025-12-03至2025-12-13清远市伙食补助费",debit:660.0,credit:0.0,dept:"项目实施部"},{date:"2026-02-09",summary:"付韩炜报销韩炜2025-12-01至2025-12-27清远市伙食补助费",debit:1620.0,credit:0.0,dept:"项目实施部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:119.81,credit:0.0,dept:"项目实施部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:115.39,credit:0.0,dept:"项目实施部"},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-31嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-09-01至2025-09-11嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-08-22至2025-08-22嘉兴市其他",debit:270.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-09-18至2025-09-18嘉兴市交通费用",debit:293.88,credit:0.0,dept:"系统研发部"},{date:"2026-02-09",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市交通费用",debit:37.1,credit:0.0,dept:"系统研发部"},{date:"2026-02-09",summary:"付袁振凯报销袁振凯2025-12-22至2025-12-30嘉兴市伙食补助费",debit:140.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:854.79,credit:0.0,dept:"系统研发部"},{date:"2026-03-11",summary:"付李伟敏报销李伟敏2026-03-01至2026-03-09黄冈市伙食补助费",debit:60.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-09",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市伙食补助费",debit:80.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-09",summary:"付李伟敏报销李伟敏2026-02-25至2026-02-25黄冈市交通费用",debit:155.47,credit:0.0,dept:"系统研发部"},{date:"2026-03-11",summary:"付李伟敏报销李伟敏2026-03-10至2026-03-10黄冈市交通费用",debit:174.48,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付李伟敏报销李伟敏2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-27",summary:"付李伟敏报销李伟敏2026-02-11至2026-02-11黄冈市交通费用",debit:382.14,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:540.63,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"付李伟敏报销李伟敏2026-01-25至2026-01-25黄冈市交通费用",debit:195.04,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:2225.88,credit:0.0,dept:"系统研发部"},{date:"2026-02-09",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市伙食补助费",debit:70.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-09",summary:"付陈锋报销陈锋2026-01-31至2026-01-31廊坊市交通费用",debit:153.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3624.28,credit:0.0,dept:"系统研发部"},{date:"2026-03-09",summary:"付黎国飘报销黎国飘2026-02-24至2026-02-28廊坊市伙食补助费",debit:350.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:164.48,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:1351.9,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1972.69,credit:0.0,dept:"系统研发部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:523.15,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:724.98,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"付刘建武报销刘建武2026-01-02至2026-01-09成都市伙食补助费",debit:140.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:35.91,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:1183.7,credit:0.0,dept:"系统研发部"},{date:"2026-03-09",summary:"付黄金海报销黄金海2026-02-26至2026-02-28清远市交通费用",debit:78.7,credit:0.0,dept:"系统研发部"},{date:"2026-03-09",summary:"付黄金海报销黄金海2026-03-01至2026-03-03清远市交通费用",debit:81.9,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付黄金海报销黄金海2025-12-24至2025-12-31清远市伙食补助费",debit:480.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付郑天瑞报销郑天瑞2025-12-01至2025-12-17清远市伙食补助费",debit:1020.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付黄金海报销黄金海2025-12-01至2025-12-21清远市伙食补助费",debit:1260.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付陈泽升报销陈泽升2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-27",summary:"付陈金辉报销陈金辉2026-02-09至2026-02-09清远市交通费用",debit:382.5,credit:0.0,dept:"系统研发部"},{date:"2026-02-27",summary:"付陈金辉报销陈金辉2026-02-02至2026-02-08清远市伙食补助费",debit:420.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-06",summary:"付陈金辉报销陈金辉2026-01-20至2026-01-29清远市伙食补助费",debit:600.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-06",summary:"付陈泽升报销陈泽升2026-01-04至2026-01-23清远市伙食补助费",debit:1200.0,credit:0.0,dept:"系统研发部"},{date:"2026-02-03",summary:"付潘智耀报销潘智耀2026-01-04至2026-01-31清远市伙食补助费",debit:1680.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:57.14,credit:0.0,dept:"系统研发部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:240.37,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"付陈金辉报销陈金辉2026-01-23至2026-01-23清远市交通费用",debit:54.2,credit:0.0,dept:"系统研发部"},{date:"2026-01-27",summary:"付陈金辉报销陈金辉2026-01-04至2026-01-16清远市伙食补助费",debit:780.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-13",summary:"付陈金辉报销陈金辉2026-01-06至2026-01-06清远市交通费用",debit:47.2,credit:0.0,dept:"系统研发部"},{date:"2026-01-15",summary:"付潘智耀报销潘智耀2025-12-15至2025-12-31清远市伙食补助费",debit:1020.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-13",summary:"付陈金辉报销陈金辉2025-12-01至2025-12-31清远市伙食补助费",debit:1860.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"付陈泽升报销陈泽升2026-02-26至2026-02-26清远市伙食补助费",debit:60.0,credit:0.0,dept:"系统研发部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:120.84,credit:0.0,dept:"系统研发部"},{date:"2026-01-07",summary:"付袁振凯报销袁振凯2025-12-01至2025-12-11东莞市伙食补助费",debit:770.0,credit:0.0,dept:"系统研发部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:89.77,credit:0.0,dept:"系统研发部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:42.33,credit:0.0,dept:"系统研发部"}],"660213":[{date:"2026-02-03",summary:"陈艳培付互盛（中国）有限公司202512-202601打印机租赁款",debit:982.92,credit:0.0,dept:"综合管理部"},{date:"2026-01-13",summary:"付曹土如接待室桶装水费用报销",debit:336.0,credit:0.0,dept:"综合管理部"}],"660236":[{date:"2026-01-07",summary:"付周盈盈职业、环境体系审核老师交通费用",debit:1573.19,credit:0.0,dept:"综合管理部"}],"660240":[{date:"2026-01-30",summary:"李蕾付深圳国家知识产权局专利代办处冲1季度专利年费3300元",debit:3300.0,credit:0.0,dept:"综合管理部"}],"660280055":[{date:"2026-02-28",summary:"生活2月开票预提",debit:2853.1,credit:0.0,dept:"综合管理部"}],"660290":[{date:"2026-01-07",summary:"付曾德胜客户宿舍住宿水电费报销",debit:1400.0,credit:0.0,dept:"项目实施部"},{date:"2026-01-22",summary:"付曾德胜志华项目水电费报销-客户宿舍住宿水电费",debit:2500.0,credit:0.0,dept:"项目实施部"}],"660115":[{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:1632.35,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:420.76,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:1370.29,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:2883.97,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:5742.14,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:7453.75,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"付戚家灿出差补贴",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"付黎永裕出差补贴",debit:160.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"付伍广成出差补贴",debit:700.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"付戚家灿出差补贴",debit:1360.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:913.97,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:1613.79,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程酒店款",debit:6199.05,credit:0.0,dept:"售前服务部"},{date:"2026-01-22",summary:"付王金豪报销王金豪2025-12-29至2025-12-29佛山市伙食补助费",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-07",summary:"付王金豪报销王金豪2025-12-25至2025-12-25佛山市伙食补助费",debit:35.0,credit:0.0,dept:"售前服务部"},{date:"2026-02-03",summary:"付刘家盛报销刘家盛2026-02-02至2026-02-02佛山市伙食补助费",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:108.3,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付顾国良报销顾国良2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28嘉兴市伙食补助费",debit:70.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付顾国良报销顾国良2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-03-01至2026-03-01广州市伙食补助费",debit:80.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付徐锦富报销徐锦富2026-02-26至2026-02-28广州市交通费用",debit:294.5,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:223.37,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:59.2,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:446.03,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.47,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1431.51,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:3759.61,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:167.5,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:44.4,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:83.77,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:271.86,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:334.52,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:630.4,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1073.64,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:162.45,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:272.94,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:29.59,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:223.01,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:2275.84,credit:0.0,dept:"售前服务部"},{date:"2026-01-15",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2025年12月付携程酒店款",debit:179.25,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:55.85,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:14.79,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:111.5,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:357.86,credit:0.0,dept:"售前服务部"},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-07至2026-01-07清远市伙食补助费",debit:60.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市住宿费",debit:119.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-22",summary:"付王金豪报销王金豪2026-01-08至2026-01-09清远市伙食补助费",debit:120.0,credit:0.0,dept:"售前服务部"},{date:"2026-03-11",summary:"付方壮秋报销方壮秋2026-01-20至2026-01-20清远市伙食补助费",debit:60.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程酒店款",debit:55.85,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程火车票款",debit:181.21,credit:0.0,dept:"售前服务部"},{date:"2026-01-27",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年1月付同程机票款",debit:420.28,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程机票款",debit:107.87,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:146.49,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:297.52,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:851.89,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:1486.66,credit:0.0,dept:"售前服务部"},{date:"2026-01-07",summary:"付顾国良报销顾国良2025-12-26至2025-12-28临沂市伙食补助费",debit:210.0,credit:0.0,dept:"售前服务部"},{date:"2026-01-07",summary:"付顾国良报销顾国良2025-12-26至2025-12-29临沂市交通费用",debit:421.49,credit:0.0,dept:"售前服务部"},{date:"2026-01-31",summary:"董莉萍付天津行安科技有限公司2025年12月付高德网约车款SLFK-260119-01432（主表项目指定金额不平，未能自动生成凭证）",debit:100.65,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程酒店款",debit:543.44,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程机票款",debit:908.47,credit:0.0,dept:"售前服务部"},{date:"2026-01-20",summary:"董莉萍付南京欧亚航空客运代理有限公司2025年12月付同程火车票款",debit:954.4,credit:0.0,dept:"售前服务部"},{date:"2026-03-13",summary:"董莉萍付上海携程宏睿国际旅行社有限公司2026年2月酒店款",debit:219.0,credit:0.0,dept:"售前服务部"},{date:"2026-02-11",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市伙食补助费",debit:120.0,credit:0.0,dept:"售前服务部"},{date:"2026-02-11",summary:"付顾国良报销顾国良2026-02-04至2026-02-05江门市交通费用",debit:218.38,credit:0.0,dept:"售前服务部"},{date:"2026-03-18",summary:"董莉萍付南京欧亚航空客运代理有限公司2026年2月付同程火车票款",debit:68.02,credit:0.0,dept:"售前服务部"}],};
+const ACCT_DEPT_MONTH = {1:{"660115":[{"d":"售前服务部","a":38705.88},],"660214":[{"d":"总经办","a":1319.02},{"d":"综合管理部","a":173.38},],"660215":[{"d":"系统实施部","a":5363.97},{"d":"系统研发部","a":13333.48},{"d":"项目实施部","a":3120.42},],"660213":[{"d":"综合管理部","a":336.0},],"660236":[{"d":"综合管理部","a":1573.19},],"660240":[{"d":"综合管理部","a":3300.0},],"660280018":[{"d":"综合管理部","a":315.0},],"660280036":[{"d":"综合管理部","a":160.0},],"660280015":[{"d":"项目实施部","a":480.0},],"660290":[{"d":"项目实施部","a":3900.0},],},2:{"660115":[{"d":"售前服务部","a":408.38},],"660118":[{"d":"售前服务部","a":10102.98},],"660180018":[{"d":"售前服务部","a":1534.7},],"660214":[{"d":"总经办","a":33.96},{"d":"综合管理部","a":1509.67},],"660225":[{"d":"总经办","a":803.93},{"d":"系统研发部","a":768.16},],"660215":[{"d":"系统实施部","a":4440.0},{"d":"系统研发部","a":5064.74},{"d":"项目实施部","a":6170.85},],"660213":[{"d":"综合管理部","a":982.92},],"660280036":[{"d":"综合管理部","a":160.0},],"660280055":[{"d":"综合管理部","a":2853.1},],"660280018":[{"d":"项目实施部","a":795.0},],},3:{"660115":[{"d":"售前服务部","a":13956.56},],"660180018":[{"d":"售前服务部","a":1534.7},],"660215":[{"d":"总经办","a":533.56},{"d":"系统实施部","a":8102.37},{"d":"系统研发部","a":11720.23},{"d":"项目实施部","a":10025.83},],"660214":[{"d":"综合管理部","a":69.81},],"660280036":[{"d":"综合管理部","a":160.0},],"660280018":[{"d":"项目实施部","a":795.0},],},4:{},5:{},6:{},7:{},8:{},9:{},10:{},11:{},12:{},};
+const ACCT_RATE_DETAIL = {1:{"acct_name":"未取得发票的费用","acct_code":"660290","dept":"项目实施部","rate":19.8,"actual":3900.0,"avail":19680.0},2:{"acct_name":"集团内/业务招待费","acct_code":"660280018","dept":"售前服务部","rate":19.4,"actual":795.0,"avail":4100.0},3:{"acct_name":"集团内/业务招待费","acct_code":"660280018","dept":"售前服务部","rate":19.4,"actual":795.0,"avail":4100.0},4:null,5:null,6:null,7:null,8:null,9:null,10:null,11:null,12:null,};
+const ACCT_ALL = [{"c":"660113","n":"办公费","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660115","n":"差旅费","r":"销售费用","b":257942.95,"a":53070.82,"depts":[{"d":"售前服务部","b":257942.95,"a":53070.82},]},{"c":"660118","n":"业务招待费","r":"销售费用","b":135132.75,"a":10102.98,"depts":[{"d":"售前服务部","b":135132.75,"a":10102.98},]},{"c":"660125","n":"IT运维费用","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660130","n":"宣传费","r":"销售费用","b":59235.7,"a":0.0,"depts":[{"d":"售前服务部","b":59235.7,"a":0.0},]},{"c":"660153","n":"咨询费","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660156","n":"团队建设费","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660164","n":"代付税费","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660180015","n":"集团内/差旅费","r":"销售费用","b":21992.4,"a":0.0,"depts":[{"d":"售前服务部","b":21992.4,"a":0.0},]},{"c":"660180018","n":"集团内/业务招待费","r":"销售费用","b":10000.0,"a":3069.4,"depts":[{"d":"售前服务部","b":10000.0,"a":3069.4},]},{"c":"660180053","n":"集团内/咨询费","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660190","n":"未取得发票的费用","r":"销售费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},]},{"c":"660213","n":"办公费","r":"管理费用","b":12213.39,"a":1318.92,"depts":[{"d":"总经办","b":1.0,"a":0.0},{"d":"综合管理部","b":12212.39,"a":1318.92},]},{"c":"660214","n":"邮费、通讯费","r":"管理费用","b":24564.87,"a":3105.84,"depts":[{"d":"总经办","b":0.0,"a":1352.98},{"d":"综合管理部","b":24564.87,"a":1752.86},{"d":"项目实施部","b":0.0,"a":0.0},]},{"c":"660215","n":"差旅费","r":"管理费用","b":541760.32,"a":67875.45000000001,"depts":[{"d":"总经办","b":89978.03,"a":533.56},{"d":"系统实施部","b":89360.08,"a":17906.34},{"d":"系统研发部","b":182629.56,"a":30118.45},{"d":"项目实施部","b":179792.65,"a":19317.1},]},{"c":"660218","n":"业务招待费","r":"管理费用","b":25973.46,"a":0.0,"depts":[{"d":"总经办","b":25973.46,"a":0.0},{"d":"综合管理部","b":0.0,"a":0.0},]},{"c":"660222999","n":"物料消耗/其他","r":"管理费用","b":8849.56,"a":0.0,"depts":[{"d":"综合管理部","b":8849.56,"a":0.0},]},{"c":"660225","n":"IT运维费用","r":"管理费用","b":28939.05,"a":1572.09,"depts":[{"d":"总经办","b":1.0,"a":803.93},{"d":"系统实施部","b":26548.67,"a":0.0},{"d":"系统研发部","b":265.49,"a":768.16},{"d":"综合管理部","b":0.0,"a":0.0},{"d":"项目实施部","b":2123.89,"a":0.0},]},{"c":"660236","n":"咨询费","r":"管理费用","b":309611.66,"a":1573.19,"depts":[{"d":"综合管理部","b":309611.66,"a":1573.19},{"d":"项目实施部","b":0.0,"a":0.0},]},{"c":"660237","n":"审计、法律中介服务费","r":"管理费用","b":42735.84,"a":0.0,"depts":[{"d":"综合管理部","b":42735.84,"a":0.0},]},{"c":"660240","n":"商标注册及使用费","r":"管理费用","b":96165.05,"a":3300.0,"depts":[{"d":"综合管理部","b":96165.05,"a":3300.0},]},{"c":"660247","n":"会员费及代理费","r":"管理费用","b":5660.38,"a":0.0,"depts":[{"d":"综合管理部","b":5660.38,"a":0.0},]},{"c":"660249","n":"软件及维护费","r":"管理费用","b":107964.6,"a":0.0,"depts":[{"d":"系统研发部","b":107964.6,"a":0.0},]},{"c":"660254","n":"其他租赁费","r":"管理费用","b":0.0,"a":0.0,"depts":[{"d":"综合管理部","b":0.0,"a":0.0},]},{"c":"660255","n":"团队建设费","r":"管理费用","b":18630.0,"a":0.0,"depts":[{"d":"综合管理部","b":18630.0,"a":0.0},]},{"c":"660266","n":"代付税费","r":"管理费用","b":0.0,"a":0.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},{"d":"总经办","b":0.0,"a":0.0},{"d":"系统实施部","b":0.0,"a":0.0},{"d":"系统研发部","b":0.0,"a":0.0},{"d":"综合管理部","b":0.0,"a":0.0},{"d":"项目实施部","b":0.0,"a":0.0},]},{"c":"660280013","n":"集团内/办公费","r":"管理费用","b":0.0,"a":0.0,"depts":[{"d":"综合管理部","b":0.0,"a":0.0},]},{"c":"660280015","n":"集团内/差旅费","r":"管理费用","b":52260.0,"a":480.0,"depts":[{"d":"系统实施部","b":13686.0,"a":0.0},{"d":"系统研发部","b":3162.0,"a":0.0},{"d":"项目实施部","b":35412.0,"a":480.0},]},{"c":"660280018","n":"集团内/业务招待费","r":"管理费用","b":5000.0,"a":1905.0,"depts":[{"d":"售前服务部","b":0.0,"a":0.0},{"d":"总经办","b":5000.0,"a":0.0},{"d":"综合管理部","b":0.0,"a":315.0},{"d":"项目实施部","b":0.0,"a":1590.0},]},{"c":"660280036","n":"集团内/咨询费","r":"管理费用","b":0.0,"a":480.0,"depts":[{"d":"综合管理部","b":0.0,"a":480.0},]},{"c":"660280055","n":"集团内/团队建设费","r":"管理费用","b":0.0,"a":2853.1,"depts":[{"d":"综合管理部","b":0.0,"a":2853.1},]},{"c":"660290","n":"未取得发票的费用","r":"管理费用","b":24000.0,"a":3900.0,"depts":[{"d":"综合管理部","b":0.0,"a":0.0},{"d":"项目实施部","b":24000.0,"a":3900.0},]},];
+const ML = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
+
+// ═══════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════
+let ovMonths = [0];
+let dmMonths = [0];
+let tmMonths = [1];
+let _prevPage = 'overview';
+let _glPageFrom = 'dept';
+let amMonths = [0];
+
+// ═══════════════════════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════════════════════
+function sumByMonths(months){
+  let b=0,a=0;
+  months.forEach(m=>{
+    if(m===0){b+=MCB[DM-1];a+=MCA[DM-1];}
+    else{const i=m-1;b+=MB[i];a+=MA[i];}
+  });
+  return{budget:b,actual:a};
+}
+
+function deptSliceData(m){
+  const budget=DA.map(a=>m===0?a*(DM/12):a/12);
+  const actual=m===0?DL.map((_,di)=>[1,2,3].reduce((s,mi)=>s+(DMA[mi]||[])[di]||0,0)):(DMA[m]||new Array(DL.length).fill(0));
+  return{budget,actual};
+}
+
+function monthLbl(m){return m===0?'YTD 累计':ML[m-1];}
+function monthLbls(arr){
+  if(arr.length===0)return'未选择';
+  if(arr.includes(0)&&arr.length===1)return'YTD 累计';
+  if(arr.includes(0))return'YTD + '+arr.filter(x=>x>0).map(x=>ML[x-1]).join('/');
+  return arr.map(x=>ML[x-1]).join('/');
+}
+
+// ═══════════════════════════════════════════════════════════
+// Slicer
+// ═══════════════════════════════════════════════════════════
+function setupSlicer(barId,attr,stateArr,infoId,labelFn,onUpdate,allValue){
+  const bar=document.getElementById(barId);
+  const allKey=(allValue!==undefined)?allValue:0;
+  bar.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-'+attr+']');
+    if(!btn||btn.disabled)return;
+    const v=parseInt(btn.dataset[attr]);
+    if(isNaN(v))return;
+    if(v===allKey){stateArr.length=0;stateArr.push(allKey);}
+    else{
+      const aIdx=stateArr.indexOf(allKey);
+      if(aIdx>-1)stateArr.splice(aIdx,1);
+      const idx=stateArr.indexOf(v);
+      if(idx>-1){if(stateArr.length>1)stateArr.splice(idx,1);else stateArr.push(allKey);}
+      else{stateArr.push(v);}
+    }
+    bar.querySelectorAll('[data-'+attr+']').forEach(b=>{b.classList.toggle('active',stateArr.includes(parseInt(b.dataset[attr])));});
+    document.getElementById(infoId).innerHTML='当前：<strong>'+labelFn(stateArr)+'</strong>';
+    onUpdate();
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// Page switching
+// ═══════════════════════════════════════════════════════════
+function showPage(n){
+  _prevPage = n;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+n).classList.add('active');
+  const t={overview:0,trend:1,dept:2,acct:3};
+  if(t[n]!==undefined) document.querySelectorAll('.nav-tab')[t[n]].classList.add('active');
+}
+
+// ═══════════════════════════════════════════════════════════
+// GL detail page
+// ═══════════════════════════════════════════════════════════
+function showGLDetail(acctCode, acctName, deptName, sourcePage, month){
+  _glPageFrom = sourcePage || 'dept';
+  _prevPage = _glPageFrom;
+  showPage('gl');
+  document.getElementById('glTitle').textContent = acctName + ' - 明细账';
+  document.getElementById('glSub').textContent = deptName ? '部门：' + deptName : '';
+  let entries;let showDept = false;
+  if(deptName){const key=acctCode+'|||'+deptName;entries=GL_ACCT_DEPT[key]||[];}
+  else if(month){const key=acctCode+'|||'+month;entries=GL_ACCT_MONTH[key]||[];}
+  else{entries=GL_ACCT[acctCode]||[];showDept=true;}
+  const thead=document.querySelector('.gl-table thead tr');
+  if(showDept){thead.innerHTML='<th>序号</th><th>部门</th><th>GL日期</th><th>摘要</th><th style="text-align:right">借方金额（元）</th><th style="text-align:right">贷方金额（元）</th>';}
+  else{thead.innerHTML='<th>序号</th><th>GL日期</th><th>摘要</th><th style="text-align:right">借方金额（元）</th><th style="text-align:right">贷方金额（元）</th>';}
+  let totalDebit=0,totalCredit=0;const body=document.getElementById('glBody');
+  if(entries.length===0){const colSpan=showDept?6:5;body.innerHTML='<tr><td colspan="'+colSpan+'" class="empty">暂无明细账数据</td></tr>';document.getElementById('glFoot').innerHTML='';document.getElementById('glSummary').innerHTML='<div class="gl-summary-item"><div class="label">借方合计</div><div class="value">-</div></div><div class="gl-summary-item"><div class="label">贷方合计</div><div class="value">-</div></div><div class="gl-summary-item"><div class="label">净发生额</div><div class="value">-</div></div>';return;}
+  let rows='';entries.forEach((e,i)=>{totalDebit+=e.debit||0;totalCredit+=e.credit||0;if(showDept){rows+='<tr><td>'+(i+1)+'</td><td>'+(e.dept||'-')+'</td><td>'+e.date+'</td><td class="summary-cell">'+(e.summary||'-')+'</td><td class="num">'+fmt(e.debit)+'</td><td class="num">'+fmt(e.credit)+'</td></tr>';}else{rows+='<tr><td>'+(i+1)+'</td><td>'+e.date+'</td><td class="summary-cell">'+(e.summary||'-')+'</td><td class="num">'+fmt(e.debit)+'</td><td class="num">'+fmt(e.credit)+'</td></tr>';}});
+  body.innerHTML=rows;const colSpan=showDept?3:2;const net=totalDebit-totalCredit;
+  document.getElementById('glFoot').innerHTML='<tr><td colspan="'+colSpan+'">合计</td><td class="num">'+fmt(totalDebit)+'</td><td class="num">'+fmt(totalCredit)+'</td></tr>';
+  document.getElementById('glSummary').innerHTML='<div class="gl-summary-item"><div class="label">借方合计</div><div class="value">'+fmt(totalDebit)+' 元</div></div><div class="gl-summary-item"><div class="label">贷方合计</div><div class="value">'+fmt(totalCredit)+' 元</div></div><div class="gl-summary-item"><div class="label">净发生额</div><div class="value" style="color:'+(net>=0?'#4a9470':'#c4846c')+'">'+fmt(Math.abs(net))+' 元</div></div>';
+}
+function goBackFromGL(){showPage(_glPageFrom);}
+function glLinkHtml(acctCode,acctName,deptName,amount,sourcePage,month){const displayAmt=fmt(amount);return'<a class="gl-link" href="javascript:void(0)" onclick="showGLDetail(\''+acctCode+'\',\''+acctName.replace(/'/g,"\\'")+'\',\''+deptName.replace(/'/g,"\\'")+'\',\''+(sourcePage||'dept')+'\','+(month!=null?month:'null')+')">'+displayAmt+'</a>';}
+
+// ═══════════════════════════════════════════════════════════
+// Chart.js base
+// ═══════════════════════════════════════════════════════════
+Chart.defaults.color='#aaa';
+Chart.defaults.font.family="'Noto Sans SC','Microsoft YaHei',sans-serif";
+Chart.defaults.font.size=11;
+const GR='#f0ece8',DK='#1a1a1a',GD='#b8956a',SG='#7c9a8a',WM='#c4846c';
+const sOpt={x:{grid:{color:GR},ticks:{color:'#bbb'}},y:{grid:{color:GR},ticks:{color:'#bbb',callback:v=>'¥'+(v/10000).toFixed(0)+'万'}}};
+
+// ═══════════════════════════════════════════════════════════
+// Overview page
+// ═══════════════════════════════════════════════════════════
+let cOvBar, cOvLine;
+function initOverview(){
+  cOvBar=new Chart(document.getElementById('chartOvBar'),{type:'bar',data:{labels:DL,datasets:[{label:'调整预算',data:[],backgroundColor:DK+'22',borderColor:DK+'88',borderWidth:1},{label:'可使用预算',data:[],backgroundColor:'#5b8ec9'+'33',borderColor:'#5b8ec9'+'88',borderWidth:1,borderDash:[3,3]},{label:'实际发生',data:[],backgroundColor:SG+'bb',borderColor:SG,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},legend:{position:'top',labels:{color:'#888',boxWidth:10}},tooltip:{callbacks:{label:c=>' '+c.dataset.label+': ¥'+c.parsed.y.toLocaleString()}}},scales:sOpt}});
+  cOvLine=new Chart(document.getElementById('chartOvLine'),{type:'line',data:{labels:ML.slice(0,DM),datasets:[{label:'可使用预算',data:MB.slice(0,DM).map(v=>availBudget(v)),borderColor:'#5b8ec9',backgroundColor:'#5b8ec9'+'0d',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:'#5b8ec9',borderDash:[3,3]},{label:'实际',data:MA.slice(0,DM),borderColor:SG,backgroundColor:SG+'22',fill:true,tension:.4,pointRadius:4,pointBackgroundColor:SG}]},options:{responsive:true,maintainAspectRatio:false,plugins:{datalabels:{display:false},legend:{position:'top',labels:{color:'#888',boxWidth:10}}},scales:sOpt}});
+  updateOverview();
+}
+function updateOverview(){
+  const sd=sumByMonths(ovMonths);const avb=availBudget(sd.budget);const rate=execRate(sd.actual,sd.budget);const save=avb-sd.actual;const saveR=avb>0?(save/avb*100):0;const lbl=monthLbls(ovMonths);
+  document.getElementById('k1L').textContent=lbl+' 调整预算';document.getElementById('k1V').innerHTML=fmtW(sd.budget)+'<span>万元</span>';document.getElementById('k1S').textContent='年度总预算 '+fmtW(TA)+'万元';
+  document.getElementById('k1bL').textContent=lbl+' 可使用预算';document.getElementById('k1bV').innerHTML=fmtW(avb)+'<span>万元</span>';document.getElementById('k1bS').textContent='= 调整预算 × 82%';
+  document.getElementById('k2L').textContent=lbl+' 实际发生';document.getElementById('k2V').innerHTML=fmtW(sd.actual)+'<span>万元</span>';document.getElementById('k2S').innerHTML='—';
+  var feeRate=sd.budget>0?(sd.actual/sd.budget*100):0;
+  document.getElementById('k2bL').textContent=lbl+' 费用率';document.getElementById('k2bV').innerHTML=feeRate.toFixed(1)+'<span>%</span>';document.getElementById('k2bS').textContent='费用率 = 实际 / 调整预算';
+  document.getElementById('k3L').textContent=lbl+' 执行率';document.getElementById('k3V').innerHTML=rate.toFixed(1)+'<span>%</span>';document.getElementById('k3S').textContent='实际 / 可使用预算';
+  document.getElementById('k4L').textContent='可使用预算结余';document.getElementById('k4V').innerHTML=fmtW(save)+'<span>万元</span>';document.getElementById('k4S').textContent='结余率 '+saveR.toFixed(1)+'%';
+  var k4El=document.getElementById('k4V').closest('.kpi');var k4Line=k4El.querySelector('.kpi-top-line');if(save>=0){k4El.style.background='#f0f7f4';k4El.style.borderColor='#b8dcc8';k4Line.style.background='#4a9470';}else{k4El.style.background='#fef5f0';k4El.style.borderColor='#f0c4b0';k4Line.style.background='#c4846c';}
+  const db=DA.map(a=>a*(DM/12));const dab=DA.map(a=>availBudget(a*(DM/12)));const da2=DL.map((_,di)=>[1,2,3].reduce((s,mi)=>s+(DMA[mi]||[])[di]||0,0));
+  cOvBar.data.datasets[0].data=ovMonths.includes(0)?db:DA.map(a=>a/12*ovMonths.filter(x=>x>0).length);
+  cOvBar.data.datasets[1].data=ovMonths.includes(0)?dab:DA.map(a=>availBudget(a/12*ovMonths.filter(x=>x>0).length));
+  cOvBar.data.datasets[2].data=ovMonths.includes(0)?da2:DL.map((_,di)=>ovMonths.filter(x=>x>0).reduce((s,m)=>s+(DMA[m]||[])[di]||0,0));
+  cOvBar.update();document.getElementById('ovBarT').textContent='各部门预算 vs 实际（'+lbl+'）';
+}
+
+// ═══════════════════════════════════════════════════════════
+// Trend page (line chart with diff labels + monthly acct table)
+// ═══════════════════════════════════════════════════════════
+let cTdLine;
+function initTrend(){
+  cTdLine=new Chart(document.getElementById('chartTdLine'),{
+    type:'line',
+    plugins:[ChartDataLabels],
+    data:{
+      labels:[],
+      datasets:[
+        {label:'调整预算',data:[],borderColor:DK+'88',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:DK,tension:.3,fill:false,order:2,
+          datalabels:{display:false}},
+        {label:'可使用预算',data:[],borderColor:'#5b8ec9',backgroundColor:'rgba(91,142,201,0.08)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#5b8ec9',borderDash:[5,3],tension:.3,fill:'+1',order:3,
+          datalabels:{display:false}},
+        {label:'实际发生',data:[],borderColor:'#7c9a8a',backgroundColor:'rgba(124,154,138,0.15)',borderWidth:2.5,pointRadius:5,pointBackgroundColor:SG,tension:.3,fill:false,order:1,
+          datalabels:{display:false}},
+        {label:'安全余量',data:[],borderColor:'transparent',backgroundColor:'transparent',borderWidth:0,pointRadius:0,tension:0,fill:false,order:0,
+          datalabels:{display:true,anchor:'center',align:'center',offset:0,font:{size:9,weight:'600'},color:'#5b8ec9',
+            formatter:function(v,ctx){
+              var ds=cTdLine.data.datasets;
+              var bVal=ds[0].data[ctx.dataIndex];
+              var aVal=ds[1].data[ctx.dataIndex];
+              if(bVal==null||aVal==null) return '';
+              var diff=bVal-aVal;
+              if(diff===0) return '';
+              return '('+fmtW(diff)+'万)';
+            },
+            backgroundColor:'rgba(91,142,201,0.08)',borderRadius:4,padding:{top:2,bottom:2,left:5,right:5},
+            borderColor:'rgba(91,142,201,0.3)',borderWidth:1}},
+        {label:'结余/超支',data:[],borderColor:'transparent',backgroundColor:'transparent',borderWidth:0,pointRadius:0,tension:0,fill:false,order:0,
+          datalabels:{display:true,anchor:'center',align:'center',offset:0,font:{size:9,weight:'600'},
+            color:function(ctx){
+              var ds=cTdLine.data.datasets;
+              var aVal=ds[1].data[ctx.dataIndex];
+              var rVal=ds[2].data[ctx.dataIndex];
+              if(aVal==null||rVal==null) return 'transparent';
+              var diff=aVal-rVal;
+              if(diff===0) return 'transparent';
+              return diff>=0?'#4a9470':'#c4846c';
+            },
+            formatter:function(v,ctx){
+              var ds=cTdLine.data.datasets;
+              var aVal=ds[1].data[ctx.dataIndex];
+              var rVal=ds[2].data[ctx.dataIndex];
+              if(aVal==null||rVal==null) return '';
+              var diff=aVal-rVal;
+              if(diff===0) return '';
+              var prefix=diff>=0?'+':'-';
+              return '('+prefix+fmtW(Math.abs(diff))+'万)';
+            },
+            backgroundColor:function(ctx){
+              var ds=cTdLine.data.datasets;
+              var aVal=ds[1].data[ctx.dataIndex];
+              var rVal=ds[2].data[ctx.dataIndex];
+              if(aVal==null||rVal==null) return 'transparent';
+              var diff=aVal-rVal;
+              if(diff===0) return 'transparent';
+              return diff>=0?'rgba(74,148,112,0.08)':'rgba(196,132,108,0.08)';
+            },
+            borderRadius:4,padding:{top:2,bottom:2,left:5,right:5},
+            borderColor:function(ctx){
+              var ds=cTdLine.data.datasets;
+              var aVal=ds[1].data[ctx.dataIndex];
+              var rVal=ds[2].data[ctx.dataIndex];
+              if(aVal==null||rVal==null) return 'transparent';
+              var diff=aVal-rVal;
+              if(diff===0) return 'transparent';
+              return diff>=0?'rgba(74,148,112,0.3)':'rgba(196,132,108,0.3)';
+            },
+            borderWidth:1}}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{
+          position:'top',
+          labels:{color:'#888',boxWidth:12,padding:16,filter:function(item){
+            return item.text!=='安全余量'&&item.text!=='结余/超支';
+          }}
+        },
+        tooltip:{
+          enabled:true,
+          backgroundColor:'rgba(255,255,255,0.96)',
+          titleColor:'#1a1a1a',
+          bodyColor:'#555',
+          borderColor:'#e8e4df',
+          borderWidth:1,
+          padding:14,
+          bodyFont:{size:12},
+          titleFont:{size:13,weight:'600'},
+          displayColors:true,
+          boxWidth:10,
+          boxPadding:4,
+          filter:function(item){
+            return item.dataset.label!=='安全余量'&&item.dataset.label!=='结余/超支';
+          },
+          callbacks:{
+            title:function(items){return items[0].label;},
+            afterBody:function(items){
+              var budgets=items.filter(function(i){return i.dataset.label==='调整预算';});
+              var avail=items.filter(function(i){return i.dataset.label==='可使用预算';});
+              var actual=items.filter(function(i){return i.dataset.label==='实际发生';});
+              if(!budgets.length||!avail.length) return '';
+              var bVal=budgets[0].parsed.y;
+              var aVal=avail[0].parsed.y;
+              var actVal=actual.length?actual[0].parsed.y:0;
+              if(bVal==null||aVal==null) return '';
+              var diffBA=bVal-aVal;
+              var lines=[];
+              lines.push('');
+              lines.push('━━ 调整预算 vs 可使用预算 ━━');
+              lines.push('差额: ¥'+fmtW(diffBA)+'万（即预算的18%安全余量）');
+              var achieveRate=(aVal/bVal*100).toFixed(1);
+              lines.push('可使用预算 = 调整预算 × 82%（业绩达成率 '+achieveRate+'% 时可用完）');
+              if(actVal>0){
+                var diffAvail=aVal-actVal;
+                lines.push('');
+                lines.push('━━ 可使用预算 vs 实际发生 ━━');
+                lines.push('差额: ¥'+fmtW(diffAvail)+'万（'+(diffAvail>=0?'结余':'超支')+'）');
+                // Find acct with highest exec rate for the hovered month
+                var monthIdx=items[0].dataIndex; // 0-based
+                var mode=tmMonths[0];
+                var targetMonth=monthIdx+1; // 1-based month
+                var detail=ACCT_RATE_DETAIL[targetMonth];
+                if(detail){
+                  lines.push('');
+                  lines.push('超出可使用预算比例最高：'+detail.acct_name+'，'+detail.dept);
+                }
+              }
+              return lines;
+            },
+            label:function(ctx){
+              return ' '+ctx.dataset.label+': ¥'+ctx.parsed.y.toLocaleString('zh-CN',{minimumFractionDigits:2})+' (¥'+fmtW(ctx.parsed.y)+'万)';
+            }
+          }
+        },
+        datalabels:{
+          display:function(ctx){
+            return ctx.dataset.label==='安全余量'||ctx.dataset.label==='结余/超支';
+          }
+        }
+      },
+      layout:{padding:{top:40,right:80,bottom:10}},
+      scales:sOpt
+    }
+  });
+  updateTrend();
+}
+
+function getTrendMonths(){
+  if(tmMonths.includes(0)) return [0];
+  return tmMonths.filter(function(x){return x>0;});
+}
+
+function updateTrend(){
+  var mode=tmMonths[0]; // 0=累计, 1=单月
+  var labels=ML.slice(); // 固定12个月
+  var budgetData=[],availData=[],actualData=[];
+  if(mode===0){
+    var cb=0,ca=0;
+    for(var i=0;i<12;i++){
+      cb+=MB[i];ca+=MA[i];budgetData.push(cb);availData.push(availBudget(cb));actualData.push(ca);
+    }
+  } else {
+    for(var i=0;i<12;i++){
+      budgetData.push(MB[i]);availData.push(availBudget(MB[i]));actualData.push(MA[i]);
+    }
+  }
+  var safeData=[];var balData=[];
+  for(var i=0;i<budgetData.length;i++){
+    if(budgetData[i]===null){safeData.push(null);balData.push(null);}
+    else{safeData.push((budgetData[i]+availData[i])/2);balData.push((availData[i]+actualData[i])/2);}
+  }
+  cTdLine.data.labels=labels;
+  cTdLine.data.datasets[0].data=budgetData;
+  cTdLine.data.datasets[1].data=availData;
+  cTdLine.data.datasets[2].data=actualData;
+  cTdLine.data.datasets[3].data=safeData;
+  cTdLine.data.datasets[4].data=balData;
+  cTdLine.update();
+  var modeLabel=mode===0?'累计模式':'单月模式';
+  document.getElementById('tdChartT').textContent='月度预算 vs 实际（'+modeLabel+'）';
+  document.getElementById('tmSlicerInfo').innerHTML='当前：<strong>'+modeLabel+'</strong>';
+  updateTrendAcctTable();
+}
+
+function updateTrendAcctTable(){
+  var body=document.getElementById('tdAcctBody');
+  var foot=document.getElementById('tdAcctFoot');
+  var html='';
+  var tB=0,tA=0,tAV=0;
+  for(var m=1;m<=12;m++){
+    var accts=MONTH_ACCTS[m]||[];
+    var mB=0,mA=0;
+    accts.forEach(function(ac){mB+=ac.b;mA+=ac.a;});
+    var mAvb=availBudget(mB);
+    var mRate=execRate(mA,mB);
+    var mStatus=statusTag(mRate);
+    var mBal=mAvb-mA;
+    var mBalCls=mBal>=0?'num-save':'num-over';
+    var mLink=mA>0?glLinkHtml('','',ML[m-1],mA,'trend',m):fmt(mA);
+    tB+=mB;tA+=mA;tAV+=mAvb;
+    html+='<tr class="dept-main-row"><td class="expand-toggle" onclick="toggleTrendMonth('+m+')"><span class="expand-icon" id="tdExpM'+m+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonth('+m+')">'+ML[m-1]+'</td><td>'+fmt(mB)+'</td><td>'+fmt(mAvb)+'</td><td>'+mLink+'</td><td>'+mRate+'%</td><td class="'+mBalCls+'">'+fmt(mBal)+'</td><td>'+tagH(mStatus)+'</td></tr>';
+    var innerHtml='';
+    var sortedAccts=accts.filter(function(ac){return ac.a>0||ac.b>0;}).map(function(ac){
+      var avb=availBudget(ac.b);
+      return {c:ac.c,n:ac.n,b:ac.b,a:ac.a,r:ac.r,d:ac.d,avb:avb,rate:execRate(ac.a,ac.b),status:statusTag(execRate(ac.a,ac.b)),bal:avb-ac.a};
+    }).sort(function(a,b){return b.rate-a.rate;});
+    sortedAccts.forEach(function(ac,ai){
+      var balCls=ac.bal>=0?'num-save':'num-over';
+      var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'trend',m):fmt(ac.a);
+      innerHtml+='<tr class="dept-main-row" style="background:#faf8f5"><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')"><span class="expand-icon" id="tdExpMA'+m+'_'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+balCls+'">'+fmt(ac.bal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
+      var deptHtml='';
+      if(ac.d&&ac.d.length){
+        ac.d.forEach(function(de){
+          var deptLink=de.a>0?glLinkHtml(ac.c,ac.n,de.n,de.a,'trend',m):fmt(de.a);
+          var dAvb=availBudget(ac.b); // total avail budget for this acct
+          var dRate=dAvb>0?(de.a/dAvb*100).toFixed(1):'-';
+          var dBal=dAvb-de.a;
+          var dBalCls=dBal>=0?'num-save':'num-over';
+          deptHtml+='<tr><td>'+de.n+'</td><td style="text-align:right">'+fmt(ac.b)+'</td><td style="text-align:right">'+fmt(dAvb)+'</td><td style="text-align:right">'+deptLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dBal)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
+        });
+      }
+      innerHtml+='<tr class="expand-row" id="tdRowMA'+m+'_'+ai+'"><td colspan="8"><div class="expand-inner" id="tdInnerMA'+m+'_'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptHtml+'</tbody></table></div></td></tr>';
+    });
+    html+='<tr class="expand-row" id="tdRowM'+m+'"><td colspan="8"><div class="expand-inner" id="tdInnerM'+m+'"><table class="data-table"><thead><tr><th style="width:30px"></th><th>费用名称</th><th style="text-align:right">调整预算（元）</th><th style="text-align:right">可使用预算（元）</th><th style="text-align:right">实际发生（元）</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余（元）</th><th style="text-align:center">状态</th></tr></thead><tbody>'+innerHtml+'</tbody></table></div></td></tr>';
+  }
+  body.innerHTML=html;
+  var tRate=tAV>0?(tA/tAV*100).toFixed(1):'-';
+  foot.innerHTML='<tr><td></td><td>合计</td><td>'+fmt(tB)+'</td><td>'+fmt(tAV)+'</td><td>'+fmt(tA)+'</td><td>'+tRate+'%</td><td class="'+(tAV-tA>=0?'num-save':'num-over')+'">'+fmt(tAV-tA)+'</td><td>—</td></tr>';
+}
+function toggleTrendMonth(m){
+  var icon=document.getElementById('tdExpM'+m);
+  var inner=document.getElementById('tdInnerM'+m);
+  var isOpen=inner.classList.contains('show');
+  // close all siblings first
+  document.querySelectorAll('[id^="tdInnerM"]').forEach(function(el){el.classList.remove('show');});
+  document.querySelectorAll('[id^="tdExpM"]').forEach(function(el){el.classList.remove('open');});
+  // also close nested
+  document.querySelectorAll('[id^="tdInnerMA"]').forEach(function(el){el.classList.remove('show');});
+  document.querySelectorAll('[id^="tdExpMA"]').forEach(function(el){el.classList.remove('open');});
+  if(!isOpen){inner.classList.add('show');icon.classList.add('open');}
+}
+function toggleTrendMonthAcct(m,ai){
+  var icon=document.getElementById('tdExpMA'+m+'_'+ai);
+  var inner=document.getElementById('tdInnerMA'+m+'_'+ai);
+  var isOpen=inner.classList.contains('show');
+  // close other nested accts
+  document.querySelectorAll('[id^="tdInnerMA"]').forEach(function(el){el.classList.remove('show');});
+  document.querySelectorAll('[id^="tdExpMA"]').forEach(function(el){el.classList.remove('open');});
+  if(!isOpen){inner.classList.add('show');icon.classList.add('open');}
+}
+function toggleTrendExpand(m,i){
+  var icon=document.getElementById('tdExp'+m+'_'+i);
+  var inner=document.getElementById('tdInner'+m+'_'+i);
+  var isOpen=inner.classList.contains('show');
+  document.querySelectorAll('[id^="tdInner"]').forEach(function(el){el.classList.remove('show');});
+  document.querySelectorAll('[id^="tdExp"]').forEach(function(el){el.classList.remove('open');});
+  if(!isOpen){inner.classList.add('show');icon.classList.add('open');}
+}
+
+// ═══════════════════════════════════════════════════════════
+// Dept analysis page
+// ═══════════════════════════════════════════════════════════
+function initDept(){updateDept();}
+function updateDept(){
+  const m=dmMonths[0];const dd=deptSliceData(m);const lbl=monthLbls(dmMonths);
+  const deptArr=DL.map((n,i)=>({name:n,idx:i,budget:dd.budget[i],actual:dd.actual[i]}));
+  deptArr.forEach(d=>{d.rate=execRate(d.actual,d.budget);d.status=statusTag(d.rate);d.diff=availBudget(d.budget)-d.actual;});
+  deptArr.sort((a,b)=>b.rate-a.rate);
+  const el=document.getElementById('dmBars');el.innerHTML='';
+  deptArr.forEach(d=>{
+    const c=d.rate>100?'over':(d.rate>90?'warn':'safe');
+    el.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+d.name+'</span><div class="dept-bar-stats"><span>可使用预算 ¥'+(availBudget(d.budget)/10000).toFixed(1)+'万</span><span class="hl">实际 ¥'+(d.actual/10000).toFixed(1)+'万</span><span class="hl">'+d.rate+'%</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(d.rate,100)+'%"></div></div></div>';
+  });
+  document.getElementById('dmBarT').textContent='部门执行率排行（'+lbl+'·降序）';
+  renderDeptTable(deptArr);
+}
+function renderDeptTable(deptArr){
+  const body=document.getElementById('dmTblBody');const foot=document.getElementById('dmTblFoot');let tB=0,tA=0,tAvb=0;body.innerHTML='';
+  deptArr.forEach(d=>{
+    tB+=d.budget;tA+=d.actual;tAvb+=availBudget(d.budget);
+    const accts=DEPT_ACCTS[d.name]||[];
+    const sortedAccts=[...accts].map(ac=>({...ac,rate:execRate(ac.a,ac.b),status:statusTag(execRate(ac.a,ac.b))})).sort((a,b)=>b.rate-a.rate);
+    let acctRows='';
+    sortedAccts.forEach((ac,ai)=>{
+      const acctActualLink=ac.a>0?glLinkHtml(ac.c,ac.n,d.name,ac.a,'dept',null):fmt(ac.a);
+      var acctBal=availBudget(ac.b)-ac.a;var acctBalCls=acctBal>=0?'num-save':'num-over';
+      acctRows+='<tr><td>'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(availBudget(ac.b))+'</td><td>'+acctActualLink+'</td><td>'+ac.rate+'%</td><td class="'+acctBalCls+'">'+fmt(acctBal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
+    });
+    body.innerHTML+='<tr class="dept-main-row" data-dept="'+d.idx+'"><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')"><span class="expand-icon" id="deptExp'+d.idx+'">▶</span></td><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')">'+d.name+'</td><td>'+fmt(d.budget)+'</td><td>'+fmt(availBudget(d.budget))+'</td><td>'+fmt(d.actual)+'</td><td>'+d.rate+'%</td><td class="'+(d.diff>=0?'num-save':'num-over')+'">'+fmt(d.diff)+'</td><td>'+tagH(d.status)+'</td></tr><tr class="expand-row" id="deptRow'+d.idx+'"><td colspan="8"><div class="expand-inner" id="deptInner'+d.idx+'"><table class="expand-sub-table"><thead><tr><th>费用名称</th><th style="text-align:right">调整预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+acctRows+'</tbody></table></div></td></tr>';
+  });
+  const tRate=tAvb>0?(tA/tAvb*100).toFixed(1):'-';
+  foot.innerHTML='<tr><td></td><td>合计</td><td>'+fmt(tB)+'</td><td>'+fmt(tAvb)+'</td><td>'+fmt(tA)+'</td><td>'+tRate+'%</td><td class="'+(tAvb-tA>=0?'num-save':'num-over')+'">'+fmt(tAvb-tA)+'</td><td>—</td></tr>';
+}
+function toggleDeptExpand(i){
+  const icon=document.getElementById('deptExp'+i);const inner=document.getElementById('deptInner'+i);const isOpen=inner.classList.contains('show');
+  document.querySelectorAll('[id^="deptInner"]').forEach(el=>el.classList.remove('show'));document.querySelectorAll('[id^="deptExp"]').forEach(el=>el.classList.remove('open'));
+  if(!isOpen){inner.classList.add('show');icon.classList.add('open');}
+}
+
+// ═══════════════════════════════════════════════════════════
+// Acct analysis page (by fee category dimension)
+// ═══════════════════════════════════════════════════════════
+function initAcct(){updateAcct();}
+function updateAcct(){
+  var m=amMonths[0];var lbl=monthLbls(amMonths);
+  var acctArr=ACCT_ALL.map(function(ac){
+    var b=m===0?ac.b:ac.b/12;
+    var a=0;
+    if(m===0){a=ac.a;}
+    else{
+      for(var mi=1;mi<=m;mi++){
+        var ad=ACCT_DEPT_MONTH[mi];
+        if(ad&&ad[ac.c]){
+          ad[ac.c].forEach(function(de){a+=de.a;});
+        }
+      }
+    }
+    return {c:ac.c,n:ac.n,r:ac.r,b:b,a:a,depts:ac.depts};
+  });
+  acctArr.forEach(function(ac){
+    ac.rate=execRate(ac.a,ac.b);
+    ac.status=statusTag(ac.rate);
+    ac.avb=availBudget(ac.b);
+    ac.diff=ac.avb-ac.a;
+  });
+  acctArr.sort(function(a,b){return b.rate-a.rate;});
+  var el=document.getElementById('acBars');el.innerHTML='';
+  acctArr.forEach(function(ac){
+    var c=ac.rate>100?'over':(ac.rate>90?'warn':'safe');
+    el.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+ac.n+'</span><div class="dept-bar-stats"><span>可使用预算 ¥'+(ac.avb/10000).toFixed(1)+'万</span><span class="hl">实际 ¥'+(ac.a/10000).toFixed(1)+'万</span><span class="hl">'+ac.rate+'%</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(ac.rate,100)+'%"></div></div></div>';
+  });
+  document.getElementById('acBarT').textContent='费用类别执行率排行（'+lbl+'·降序）';
+  renderAcctTable(acctArr,m,lbl);
+}
+function renderAcctTable(acctArr,selMonth,lbl){
+  var body=document.getElementById('acTblBody');
+  var foot=document.getElementById('acTblFoot');
+  var tB=0,tA=0,tAV=0;
+  body.innerHTML='';
+  acctArr.forEach(function(ac,ai){
+    tB+=ac.b;tA+=ac.a;tAV+=ac.avb;
+    var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'acct',selMonth===0?null:selMonth):fmt(ac.a);
+    var deptRows='';
+    ac.depts.forEach(function(de){
+      var dB=de.b;var dA=0;
+      if(selMonth===0){dA=de.a;}
+      else{
+        for(var mi=1;mi<=selMonth;mi++){
+          var ad=ACCT_DEPT_MONTH[mi];
+          if(ad&&ad[ac.c]){
+            ad[ac.c].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});
+          }
+        }
+      }
+      var dAvb=availBudget(dB);
+      var dRate=dAvb>0?(dA/dAvb*100).toFixed(1):'-';
+      var dDiff=dAvb-dA;
+      var dLink=dA>0?glLinkHtml(ac.c,ac.n,de.d,dA,'acct',selMonth===0?null:selMonth):fmt(dA);
+      var dBalCls=dDiff>=0?'num-save':'num-over';
+      deptRows+='<tr><td>'+de.d+'</td><td>'+fmt(dB)+'</td><td>'+fmt(dAvb)+'</td><td>'+dLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dDiff)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
+    });
+    body.innerHTML+='<tr class="dept-main-row" data-acctidx="'+ai+'"><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')"><span class="expand-icon" id="acExp'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+(ac.diff>=0?'num-save':'num-over')+'">'+fmt(ac.diff)+'</td><td>'+tagH(ac.status)+'</td></tr><tr class="expand-row" id="acRow'+ai+'"><td colspan="8"><div class="expand-inner" id="acInner'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptRows+'</tbody></table></div></td></tr>';
+  });
+  var tRate=tAV>0?(tA/tAV*100).toFixed(1):'-';
+  foot.innerHTML='<tr><td></td><td>合计</td><td>'+fmt(tB)+'</td><td>'+fmt(tAV)+'</td><td>'+fmt(tA)+'</td><td>'+tRate+'%</td><td class="'+(tAV-tA>=0?'num-save':'num-over')+'">'+fmt(tAV-tA)+'</td><td>—</td></tr>';
+}
+function toggleAcctExpand(i){
+  var icon=document.getElementById('acExp'+i);
+  var inner=document.getElementById('acInner'+i);
+  var isOpen=inner.classList.contains('show');
+  document.querySelectorAll('[id^="acInner"]').forEach(function(el){el.classList.remove('show');});
+  document.querySelectorAll('[id^="acExp"]').forEach(function(el){el.classList.remove('open');});
+  if(!isOpen){inner.classList.add('show');icon.classList.add('open');}
+}
+
+// ═══════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════
+setupSlicer('ovSlicerBar','ovm',ovMonths,'ovSlicerInfo',monthLbls,updateOverview,0);
+setupSlicer('deptSlicerBar','dmm',dmMonths,'dmSlicerInfo',monthLbls,updateDept,0);
+setupSlicer('trendSlicerBar','tm',tmMonths,'tmSlicerInfo',monthLbls,updateTrend,0);
+setupSlicer('acctSlicerBar','am',amMonths,'amSlicerInfo',monthLbls,updateAcct,0);
+initOverview();
+initTrend();
+initDept();
+initAcct();
+</script>
+</body>
+</html>
