@@ -726,11 +726,15 @@ function updateTrendAcctTable(){
       if(ac.d&&ac.d.length){
         ac.d.forEach(function(de){
           var deptLink=de.a>0?glLinkHtml(ac.c,ac.n,de.n,de.a,'trend',m):fmt(de.a);
-          var dAvb=availBudget(ac.b); // total avail budget for this acct
+          // 按DEPT_MONTH_BGT比例分摊科目预算到部门（与费用分析展开行逻辑一致）
+          var deptYTDB=DB[DL.indexOf(de.n)]||0;
+          var deptMonthBgt=(DEPT_MONTH_BGT[de.n]||[])[m-1]||0;
+          var dB=deptYTDB>0?ac.b*(deptMonthBgt/deptYTDB):0;
+          var dAvb=availBudget(dB);
           var dRate=dAvb>0?(de.a/dAvb*100).toFixed(1):'-';
           var dBal=dAvb-de.a;
           var dBalCls=dBal>=0?'num-save':'num-over';
-          deptHtml+='<tr><td>'+de.n+'</td><td style="text-align:right">'+fmt(ac.b)+'</td><td style="text-align:right">'+fmt(dAvb)+'</td><td style="text-align:right">'+deptLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dBal)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
+          deptHtml+='<tr><td>'+de.n+'</td><td style="text-align:right">'+fmt(dB)+'</td><td style="text-align:right">'+fmt(dAvb)+'</td><td style="text-align:right">'+deptLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dBal)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
         });
       }
       innerHtml+='<tr class="expand-row" id="tdRowMA'+m+'_'+ai+'"><td colspan="8"><div class="expand-inner" id="tdInnerMA'+m+'_'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptHtml+'</tbody></table></div></td></tr>';
@@ -925,46 +929,6 @@ function updateAcct(){
     ac.avb=availBudget(ac.b);
     ac.diff=ac.avb-ac.a;
   });
-
-  // ── 合并同名科目（集团内/X → X，与普通X合并）───────────────────────────
-  var mergedMap = {};
-  var mergedOrder = [];
-  acctArr.forEach(function(ac){
-    var displayName = ac.n.replace(/^.*\//, '');
-    var key = displayName;  // 只按名称合并，确保同名科目彻底合并
-    if(!mergedMap[key]){
-      mergedMap[key] = {
-        c: ac.c, n: displayName, r: ac.r,
-        b: 0, a: 0, depts: [],
-        avb: 0, rate: 0, status: '', diff: 0
-      };
-      mergedOrder.push(key);
-    }
-    var mc = mergedMap[key];
-    mc.b += ac.b;
-    mc.a += ac.a;
-    mc.avb += ac.avb;
-    mc.diff = mc.avb - mc.a;
-    // 合并 depts（同部门叠加）
-    ac.depts.forEach(function(de){
-      var existing = mc.depts.find(function(x){return x.d===de.d;});
-      if(existing){
-        existing.b += de.b;
-        existing.a += de.a;
-      } else {
-        mc.depts.push({d:de.d, b:de.b, a:de.a});
-      }
-    });
-  });
-  // 重新计算rate/status
-  mergedOrder.forEach(function(key){
-    var mc = mergedMap[key];
-    mc.rate = execRate(mc.a, mc.b);
-    mc.status = statusTag(mc.rate);
-    mc.diff = mc.avb - mc.a;
-  });
-  // 按执行率降序
-  acctArr = mergedOrder.map(function(key){return mergedMap[key];});
 
   // ── 合并同名科目（集团内/X → X，与普通X合并）───────────────────────────
   var mergedMap = {};
