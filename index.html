@@ -278,6 +278,7 @@ function availBudget(b){ return b * AVAIL_RATE; }
 function execRate(actual, budget){ return budget > 0 ? +(actual / availBudget(budget) * 100).toFixed(1) : 0; }
 function fmt(v){return v==null||v===0?'-':v.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtW(v){return(v/10000).toFixed(1);}
+function fmtAmt(v){return v<1000?v.toFixed(0)+'元':fmtW(v)+'万';} // tooltip用：小金额显示元
 function tagH(s){const m={'正常':'tag-green','注意':'tag-warn','超支':'tag-red'};return'<span class="tag '+(m[s]||'tag-warn')+'">'+s+'</span>';}
 const STATUS_TH='状态<span class="status-tip" title="正常：实际费用低于可使用预算；超支：实际费用高于可使用预算">?</span>';
 function statusTag(rate){ return rate>100?'超支':(rate>90?'注意':'正常'); }
@@ -570,54 +571,96 @@ function initTrend(){
                 lines.push('差额: ¥'+fmtW(diffAvail)+'万（'+(diffAvail>=0?'结余':'超支')+'）');
                 // 动态计算：与费用分析同口径，合并同名科目后按可使用预算执行率/超支金额排序
                 var monthIdx=items[0].dataIndex; // 0-based
-                var targetMonth=monthIdx+1; // 1-based month（固定取单月数据）
-                var adm=ACCT_DEPT_MONTH[targetMonth];
-                var mAccts=MONTH_ACCTS[targetMonth]||[];
-                if(adm&&mAccts.length>0){
-                  // 合并同名科目（同费用分析逻辑：取最后一段名称）
-                  var acctMap={};
-                  mAccts.forEach(function(ac){
+                var targetMonth=monthIdx+1; // 1-based month
+                var modeNow=tmMonths[0]; // 0=累计，n=单月
+                // ── 第一步：收集科目预算（按模式决定范围）──────────────────────
+                // 累计模式：累加1..targetMonth各月预算+实际（与费用分析YTD口径一致）
+                // 单月模式：只取targetMonth单月
+                var acctMap={};
+                var acctOrder=[];
+                function mergeMonthAccts(mIdx){
+                  var mA=MONTH_ACCTS[mIdx]||[];
+                  mA.forEach(function(ac){
                     var dispName=ac.n.replace(/^.*\//,'');
-                    var k=dispName+'|'+(ac.r||'');
-                    if(!acctMap[k]){acctMap[k]={name:dispName,code:ac.c,b:0,a:0,deptInfo:{}};}
+                    var k=dispName;
+                    if(!acctMap[k]){
+                      acctMap[k]={name:dispName,codes:[],b:0,a:0,deptInfo:{}};
+                      acctOrder.push(k);
+                    }
+                    if(acctMap[k].codes.indexOf(ac.c)===-1) acctMap[k].codes.push(ac.c);
                     acctMap[k].b+=ac.b;
-                    // 从ACCT_DEPT_MONTH[targetMonth]取各部门实际
-                    if(adm[ac.c]){
-                      adm[ac.c].forEach(function(en){
-                        if(!acctMap[k].deptInfo[en.d]){acctMap[k].deptInfo[en.d]=0;}
-                        acctMap[k].deptInfo[en.d]+=en.a;
-                        acctMap[k].a+=en.a;
-                      });
-                    }
                   });
-                  // 找执行率最高（超出比例最高）
-                  var topRate=null,topAmt=null;
-                  Object.values(acctMap).forEach(function(ac){
-                    var avl=availBudget(ac.b);
-                    if(avl<=0||ac.a<=0) return;
-                    var rate=(ac.a/avl*100);
-                    var overAmt=ac.a-avl;
-                    // 找该科目中实际最多的部门
-                    var topDept='',topDeptA=0;
-                    Object.keys(ac.deptInfo).forEach(function(d){
-                      if(ac.deptInfo[d]>topDeptA){topDeptA=ac.deptInfo[d];topDept=d;}
+                }
+                if(modeNow===0){
+                  // 累计：逐月叠加1..targetMonth
+                  for(var mi=1;mi<=targetMonth;mi++) mergeMonthAccts(mi);
+                } else {
+                  mergeMonthAccts(targetMonth);
+                }
+                // ── 第二步：查各部门实际（遍历所有codes；累计模式逐月累加）────
+                acctOrder.forEach(function(k){
+                  var ac=acctMap[k];
+                  var months=modeNow===0?targetMonth:1; // 累计取1..targetMonth，单月取1个月
+                  var startM=modeNow===0?1:targetMonth;
+                  for(var mi=startM;mi<=(modeNow===0?targetMonth:targetMonth);mi++){
+                    var adm2=ACCT_DEPT_MONTH[mi];
+                    if(!adm2) continue;
+                    ac.codes.forEach(function(code){
+                      if(adm2[code]){
+                        adm2[code].forEach(function(en){
+                          if(!ac.deptInfo[en.d]){ac.deptInfo[en.d]=0;}
+                          ac.deptInfo[en.d]+=en.a;
+                          ac.a+=en.a;
+                        });
+                      }
                     });
-                    var deptStr=topDept?'（'+topDept+'：¥'+fmtW(topDeptA)+'万）':'';
-                    if(!topRate||rate>topRate.rate){
-                      topRate={name:ac.name,rate:rate,avl:avl,a:ac.a,deptStr:deptStr};
-                    }
-                    if(!topAmt||overAmt>topAmt.overAmt){
-                      topAmt={name:ac.name,overAmt:overAmt,a:ac.a,avl:avl,deptStr:deptStr};
-                    }
+                  }
+                });
+                // ── 第三步：找超支比例最高 & 超支金额最高（仅超支科目）──────────
+                // 预算为0但有实际的科目：超支比例视为9999%（排在最前），超支金额=实际金额
+                var topRate=null,topAmt=null;
+                acctOrder.forEach(function(k){
+                  var ac=acctMap[k];
+                  if(ac.a<=0) return; // 无实际发生，跳过
+                  var avl=availBudget(ac.b);
+                  var overRate, overAmt;
+                  if(avl<=0){
+                    // 预算为0但有实际：属于最严重超支，超支比例标记为9999
+                    overRate=9999;
+                    overAmt=ac.a;
+                  } else {
+                    overRate=ac.a/avl*100-100;
+                    overAmt=ac.a-avl;
+                  }
+                  if(overRate<=0&&overAmt<=0) return; // 未超支，跳过
+                  // 找该科目中实际最多的部门（作为主要超支部门）
+                  var topDept='',topDeptA=0;
+                  Object.keys(ac.deptInfo).forEach(function(d){
+                    if(ac.deptInfo[d]>topDeptA){topDeptA=ac.deptInfo[d];topDept=d;}
                   });
+                  if(!topRate||overRate>topRate.overRate){
+                    topRate={name:ac.name,overRate:overRate,dept:topDept,avl:avl,a:ac.a};
+                  }
+                  if(!topAmt||overAmt>topAmt.overAmt){
+                    topAmt={name:ac.name,overAmt:overAmt,dept:topDept,avl:avl,a:ac.a};
+                  }
+                });
+                if(topRate||topAmt){
+                  lines.push('');
+                  var rangeLabel=modeNow===0?('1-'+targetMonth+'月累计'):targetMonth+'月单月';
+                  lines.push('━━ '+rangeLabel+'超支分析 ━━');
                   if(topRate){
-                    lines.push('');
-                    var modeNow=tmMonths[0];
-                    lines.push('━━ '+targetMonth+'月单月费用分析 ━━'+(modeNow===0?' (折线图为累计值，此处显示单月)':''));
-                    lines.push('📈 执行率最高：'+topRate.name+'，执行率'+topRate.rate.toFixed(1)+'%'+topRate.deptStr);
+                    var deptRStr;
+                    if(topRate.overRate>=9999){
+                      deptRStr=(topRate.dept?'，'+topRate.dept:'')+'，预算为零但有实际发生';
+                    } else {
+                      deptRStr=(topRate.dept?'，'+topRate.dept:'')+'，超出'+topRate.overRate.toFixed(1)+'%';
+                    }
+                    lines.push('📈 超支比例最高：'+topRate.name+deptRStr);
                   }
                   if(topAmt&&topAmt.overAmt>0){
-                    lines.push('💸 超支金额最高：'+topAmt.name+'，超出¥'+fmtW(topAmt.overAmt)+'万'+topAmt.deptStr);
+                    var deptAStr=topAmt.dept?'，'+topAmt.dept+'，超支¥'+fmtAmt(topAmt.overAmt):'，超支¥'+fmtAmt(topAmt.overAmt);
+                    lines.push('💸 超支金额最高：'+topAmt.name+deptAStr);
                   }
                 }
               }
@@ -724,12 +767,19 @@ function updateTrendAcctTable(){
       innerHtml+='<tr class="dept-main-row" style="background:#faf8f5"><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')"><span class="expand-icon" id="tdExpMA'+m+'_'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+balCls+'">'+fmt(ac.bal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
       var deptHtml='';
       if(ac.d&&ac.d.length){
+        // 从ACCT_ALL中找该科目（含同名合并的多个原始科目）各部门的YTD预算，用于分摊当月科目总预算
+        var _acctYTDBmap={};
+        ACCT_ALL.forEach(function(aa){
+          if(aa.n.replace(/^.*\//, '')===ac.n&&aa.depts){
+            aa.depts.forEach(function(dd){if(!_acctYTDBmap[dd.d])_acctYTDBmap[dd.d]=0;_acctYTDBmap[dd.d]+=dd.b;});
+          }
+        });
+        var _acctYTDBtotal=Object.values(_acctYTDBmap).reduce(function(s,v){return s+v;},0);
         ac.d.forEach(function(de){
           var deptLink=de.a>0?glLinkHtml(ac.c,ac.n,de.n,de.a,'trend',m):fmt(de.a);
-          // 按DEPT_MONTH_BGT比例分摊科目预算到部门（与费用分析展开行逻辑一致）
-          var deptYTDB=DB[DL.indexOf(de.n)]||0;
-          var deptMonthBgt=(DEPT_MONTH_BGT[de.n]||[])[m-1]||0;
-          var dB=deptYTDB>0?ac.b*(deptMonthBgt/deptYTDB):0;
+          // 按ACCT_ALL中该科目各部门YTD预算占比，分摊当月科目总预算
+          var deptAcctYTDB=_acctYTDBmap[de.n]||0;
+          var dB=_acctYTDBtotal>0?ac.b*(deptAcctYTDB/_acctYTDBtotal):0;
           var dAvb=availBudget(dB);
           var dRate=dAvb>0?(de.a/dAvb*100).toFixed(1):'-';
           var dBal=dAvb-de.a;
@@ -921,7 +971,7 @@ function updateAcct(){
       var ad=ACCT_DEPT_MONTH[m];
       if(ad&&ad[ac.c]){ad[ac.c].forEach(function(de){a+=de.a;});}
     }
-    return {c:ac.c,n:ac.n,r:ac.r,b:b,a:a,depts:ac.depts};
+    return {c:ac.c,n:ac.n,r:ac.r,b:b,ytdB:ac.b,a:a,depts:ac.depts};  // ytdB始终为YTD预算
   });
   acctArr.forEach(function(ac){
     ac.rate=execRate(ac.a,ac.b);
@@ -939,13 +989,17 @@ function updateAcct(){
     if(!mergedMap[key]){
       mergedMap[key] = {
         c: ac.c, n: displayName, r: ac.r,
-        b: 0, a: 0, depts: [],
+        codes: [ac.c],  // 记录所有原始科目代码，用于展开行查询
+        b: 0, _ytdB: 0, a: 0, depts: [],
         avb: 0, rate: 0, status: '', diff: 0
       };
       mergedOrder.push(key);
+    } else {
+      if(mergedMap[key].codes.indexOf(ac.c)===-1) mergedMap[key].codes.push(ac.c);
     }
     var mc = mergedMap[key];
     mc.b += ac.b;
+    mc._ytdB += ac.ytdB;  // 累积YTD预算（用于部门预算比例分摊）
     mc.a += ac.a;
     mc.avb += ac.avb;
     mc.diff = mc.avb - mc.a;
@@ -988,27 +1042,27 @@ function renderAcctTable(acctArr,selMonth,lbl){
     tB+=ac.b;tA+=ac.a;tAV+=ac.avb;
     var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'acct',selMonth===0?null:selMonth):fmt(ac.a);
     var deptRows='';
+    var _codes=ac.codes&&ac.codes.length?ac.codes:[ac.c];  // 所有原始科目代码
     ac.depts.forEach(function(de){
-      // 预算：YTD用de.b；单月=科目单月预算×(部门单月预算/部门YTD预算)
+      // 预算：YTD用de.b；单月=部门YTD预算×(科目当月总预算/科目YTD总预算)
       var dB;
       if(selMonth===0){
         dB=de.b;
       } else {
-        var deptYTDB=DB[DL.indexOf(de.d)]||1;
-        var deptMonthBgt=(DEPT_MONTH_BGT[de.d]||[])[selMonth-1]||0;
-        dB=de.b*(deptYTDB>0?deptMonthBgt/deptYTDB:0);
+        // de.b是部门在该科目的YTD预算；ac._ytdB是科目YTD总预算；ac.b是当月总预算
+        dB = ac._ytdB>0 ? de.b*(ac.b/ac._ytdB) : 0;
       }
       var dA=0;
       if(selMonth===0){
-        // YTD：累加1..DM月
+        // YTD：遍历所有原始科目代码，累加1..DM月
         for(var mi=1;mi<=DM;mi++){
           var ad=ACCT_DEPT_MONTH[mi];
-          if(ad&&ad[ac.c]){ad[ac.c].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}
+          if(ad){_codes.forEach(function(code){if(ad[code]){ad[code].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}});}
         }
       } else {
-        // 单月：只取selMonth月
+        // 单月：遍历所有原始科目代码，只取selMonth月
         var ad=ACCT_DEPT_MONTH[selMonth];
-        if(ad&&ad[ac.c]){ad[ac.c].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}
+        if(ad){_codes.forEach(function(code){if(ad[code]){ad[code].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}});}
       }
       var dAvb=availBudget(dB);
       var dRate=dAvb>0?(dA/dAvb*100).toFixed(1):'-';
