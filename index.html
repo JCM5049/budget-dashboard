@@ -64,10 +64,11 @@
   .data-table th{background:#faf8f5;color:#888;padding:8px 10px;text-align:right;font-weight:600;white-space:nowrap;letter-spacing:.06em;font-size:9px;text-transform:uppercase;border-bottom:1px solid #e8e4df;}
   .data-table th:first-child{text-align:left;}
   .data-table td{padding:8px 10px;border-bottom:1px solid #f5f2ee;text-align:right;color:#333;font-size:11px;}
+  .data-table td:last-child{text-align:center;white-space:nowrap;}
   .data-table td:first-child{text-align:left;color:#1a1a1a;font-weight:500;}
   .data-table tr:hover td{background:#faf8f5;}
   .data-table tfoot td{font-weight:600;color:#1a1a1a;background:#faf8f5;border-top:1px solid #e8e4df;border-bottom:none;}
-  .tag{display:inline-block;padding:2px 8px;border-radius:2px;font-size:10px;font-weight:600;letter-spacing:.06em;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:2px;font-size:10px;font-weight:600;letter-spacing:.06em;white-space:nowrap;}
   .tag-green{background:#f0f7f4;color:#4a9470;}.tag-warn{background:#fdf8ee;color:#b8956a;}.tag-red{background:#fef5f0;color:#c4846c;}.status-tip{display:inline-block;width:14px;height:14px;line-height:14px;text-align:center;background:#bbb;color:#fff;border-radius:50%;font-size:10px;cursor:help;margin-left:3px;vertical-align:middle;font-style:normal;}.status-tip:hover{background:#888;}
   .expand-toggle{cursor:pointer;user-select:none;}
   .expand-toggle:hover{color:#b8956a;}
@@ -332,21 +333,31 @@ function sumByMonths(months){
   return{budget:b,actual:a};
 }
 
-function deptSliceData(m){
-  const budget=DL.map(function(n,i){return m===0?DB[i]:(DEPT_MONTH_BGT[n]||[])[m-1]||0;});
-  // YTD: 累加1..DM月的DMA；单月: 直接取DMA[m]
-  const actual=m===0
-    ?DL.map((_,di)=>{var s=0;for(var mi=1;mi<=DM;mi++){s+=(DMA[mi]||[])[di]||0;}return s;})
-    :(DMA[m]||new Array(DL.length).fill(0));
+// months: 数字数组，[0]=YTD累计，[1,3]=1月+3月合计，[2]=2月单月
+function deptSliceData(months){
+  var mList = resolveMonths(months); // 展开为实际月份数组
+  var budget = DL.map(function(n,i){
+    if(mList===null) return DB[i]; // YTD
+    return mList.reduce(function(s,mi){return s+((DEPT_MONTH_BGT[n]||[])[mi-1]||0);},0);
+  });
+  var actual = DL.map(function(_,di){
+    if(mList===null){var s=0;for(var mi=1;mi<=DM;mi++){s+=(DMA[mi]||[])[di]||0;}return s;}
+    return mList.reduce(function(s,mi){return s+((DMA[mi]||[])[di]||0);},0);
+  });
   return{budget,actual};
+}
+// 将月份状态数组解析为要累加的月份列表，null=YTD(1..DM)
+function resolveMonths(arr){
+  if(!arr||arr.length===0||arr.includes(0)) return null; // YTD
+  return arr.slice().sort(function(a,b){return a-b;});
 }
 
 function monthLbl(m){return m===0?'YTD 累计':ML[m-1];}
 function monthLbls(arr){
   if(arr.length===0)return'未选择';
-  if(arr.includes(0)&&arr.length===1)return'YTD 累计';
-  if(arr.includes(0))return'YTD + '+arr.filter(x=>x>0).map(x=>ML[x-1]).join('/');
-  return arr.map(x=>ML[x-1]).join('/');
+  if(arr.includes(0))return'YTD 累计';
+  if(arr.length===1)return ML[arr[0]-1];
+  return arr.slice().sort(function(a,b){return a-b;}).map(function(x){return ML[x-1];}).join('+');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -360,13 +371,22 @@ function setupSlicer(barId,attr,stateArr,infoId,labelFn,onUpdate,allValue){
     if(!btn||btn.disabled)return;
     const v=parseInt(btn.dataset[attr]);
     if(isNaN(v))return;
-    if(v===allKey){stateArr.length=0;stateArr.push(allKey);}
-    else{
+    if(v===allKey){
+      // 点YTD：清空所有，只选YTD
+      stateArr.length=0;stateArr.push(allKey);
+    } else {
+      // 点具体月份：先清掉YTD
       const aIdx=stateArr.indexOf(allKey);
       if(aIdx>-1)stateArr.splice(aIdx,1);
       const idx=stateArr.indexOf(v);
-      if(idx>-1){if(stateArr.length>1)stateArr.splice(idx,1);else stateArr.push(allKey);}
-      else{stateArr.push(v);}
+      if(idx>-1){
+        // 已选中 → 取消；若取消后为空则回到YTD
+        stateArr.splice(idx,1);
+        if(stateArr.length===0)stateArr.push(allKey);
+      } else {
+        // 未选中 → 追加（多选）
+        stateArr.push(v);
+      }
     }
     bar.querySelectorAll('[data-'+attr+']').forEach(b=>{b.classList.toggle('active',stateArr.includes(parseInt(b.dataset[attr])));});
     document.getElementById(infoId).innerHTML='当前：<strong>'+labelFn(stateArr)+'</strong>';
@@ -878,7 +898,7 @@ function toggleTrendExpand(m,i){
 // ═══════════════════════════════════════════════════════════
 function initDept(){updateDept();}
 function updateDept(){
-  const m=dmMonths[0];const dd=deptSliceData(m);const lbl=monthLbls(dmMonths);
+  const dd=deptSliceData(dmMonths);const lbl=monthLbls(dmMonths);
   const deptArr=DL.map((n,i)=>({name:n,idx:i,budget:dd.budget[i],actual:dd.actual[i]}));
   deptArr.forEach(d=>{d.rate=execRate(d.actual,d.budget);d.status=statusTag(d.rate);d.diff=availBudget(d.budget)-d.actual;});
   deptArr.sort((a,b)=>b.rate-a.rate);
@@ -892,46 +912,55 @@ function updateDept(){
 }
 function renderDeptTable(deptArr){
   const body=document.getElementById('dmTblBody');const foot=document.getElementById('dmTblFoot');let tB=0,tA=0,tAvb=0;body.innerHTML='';
-  const _dm=dmMonths[0]; // 0=YTD，1-12=单月
-  // 预算系数：单月时=Σ[1.._dm]部门月预算/部门YTD预算（按科目比例分摊）
+  const mList=resolveMonths(dmMonths); // null=YTD，数组=所选月份
   deptArr.forEach(d=>{
     tB+=d.budget;tA+=d.actual;tAvb+=availBudget(d.budget);
     const accts=DEPT_ACCTS[d.name]||[];
-    // 建立科目合并映射（以显示名+费用类型为key，b取YTD，a后面按口径重算）
+    // 建立科目合并映射（以显示名为key）
     const _acctMap={};
     accts.forEach(ac=>{
       const dn=ac.n.replace(/^.*\//, '');
-      const k=dn+'|'+(ac.r||'');
-      if(!_acctMap[k]){_acctMap[k]={c:ac.c,n:dn,r:ac.r,b:0,a:0};}
-      _acctMap[k].b+=ac.b; // 累计YTD预算
+      const k=dn;
+      if(!_acctMap[k]){_acctMap[k]={c:ac.c,n:dn,r:ac.r,codes:[ac.c],b:0,ytdB:0,a:0};}
+      else if(_acctMap[k].codes.indexOf(ac.c)===-1){_acctMap[k].codes.push(ac.c);}
+      _acctMap[k].ytdB+=ac.b; // 始终累积YTD预算
     });
-    if(_dm===0){
-      // YTD口径：预算已是YTD；实际从ACCT_DEPT_MONTH[1..DM]累加
+    if(mList===null){
+      // YTD口径：预算取YTD；实际从ACCT_DEPT_MONTH[1..DM]累加
+      Object.values(_acctMap).forEach(ac=>{ac.b=ac.ytdB;});
       accts.forEach(ac=>{
-        const k=ac.n.replace(/^.*\//,'')+'|'+(ac.r||'');
+        const k=ac.n.replace(/^.*\//,'');
         for(var mi=1;mi<=DM;mi++){
           const ad=ACCT_DEPT_MONTH[mi];
           if(ad&&ad[ac.c]){ad[ac.c].forEach(en=>{if(en.d===d.name){_acctMap[k].a+=en.a;}});}
         }
       });
     } else {
-      // 单月口径：预算=YTD预算×(部门1.._dm月合计/部门YTD预算)；实际取ACCT_DEPT_MONTH[_dm]单月
+      // 多选/单月口径：预算=各月月预算合计；实际=各月ACCT_DEPT_MONTH累加
       const deptYTDB=DB[DL.indexOf(d.name)]||1;
-      let deptMonthSum=0;
-      for(var mi=1;mi<=_dm;mi++){deptMonthSum+=(DEPT_MONTH_BGT[d.name]||[])[mi-1]||0;}
-      const bRatio=deptYTDB>0?deptMonthSum/deptYTDB:0;
-      Object.values(_acctMap).forEach(ac=>{ac.b=ac.b*bRatio;});
-      // 实际：只取_dm月单月
+      // 科目预算：按月累加
+      Object.values(_acctMap).forEach(ac=>{
+        ac.b=mList.reduce(function(s,mi){
+          // 各月科目预算 = YTD预算 × (部门该月预算 / 部门YTD预算)
+          var deptMonthBgt=(DEPT_MONTH_BGT[d.name]||[])[mi-1]||0;
+          var ratio=deptYTDB>0?deptMonthBgt/deptYTDB:0;
+          return s+ac.ytdB*ratio;
+        },0);
+      });
+      // 实际：遍历所有codes，累加所选月份
       accts.forEach(ac=>{
-        const k=ac.n.replace(/^.*\//,'')+'|'+(ac.r||'');
-        const ad=ACCT_DEPT_MONTH[_dm];
-        if(ad&&ad[ac.c]){ad[ac.c].forEach(en=>{if(en.d===d.name){_acctMap[k].a+=en.a;}});}
+        const k=ac.n.replace(/^.*\//,'');
+        mList.forEach(function(mi){
+          const ad=ACCT_DEPT_MONTH[mi];
+          if(ad&&ad[ac.c]){ad[ac.c].forEach(en=>{if(en.d===d.name){_acctMap[k].a+=en.a;}});}
+        });
       });
     }
     const sortedAccts=Object.values(_acctMap)
       .map(ac=>({...ac,rate:execRate(ac.a,ac.b),status:statusTag(execRate(ac.a,ac.b))}))
       .sort((a,b)=>b.rate-a.rate);
-    const _dmLinkMonth=_dm===0?null:_dm;
+    // 展开行明细账月份：单月时传月份，多选/YTD时传null
+    const _dmLinkMonth=(mList&&mList.length===1)?mList[0]:null;
     let acctRows='';
     sortedAccts.filter(ac=>ac.b>0||ac.a>0).forEach(ac=>{
       const acctActualLink=ac.a>0?glLinkHtml(ac.c,ac.n,d.name,ac.a,'dept',_dmLinkMonth):fmt(ac.a);
@@ -954,10 +983,11 @@ function toggleDeptExpand(i){
 // ═══════════════════════════════════════════════════════════
 function initAcct(){updateAcct();}
 function updateAcct(){
-  var m=amMonths[0];var lbl=monthLbls(amMonths);
+  var mList=resolveMonths(amMonths); // null=YTD，数组=所选月份
+  var lbl=monthLbls(amMonths);
   var acctArr=ACCT_ALL.map(function(ac){
     var b,a=0;
-    if(m===0){
+    if(mList===null){
       // YTD：预算取总预算，实际取1..DM月累计
       b=ac.b;
       for(var mi=1;mi<=DM;mi++){
@@ -965,13 +995,17 @@ function updateAcct(){
         if(ad&&ad[ac.c]){ad[ac.c].forEach(function(de){a+=de.a;});}
       }
     } else {
-      // 单月：预算取当月MONTH_ACCTS[m]，实际取ACCT_DEPT_MONTH[m]单月
-      var maEntry=(MONTH_ACCTS[m]||[]).find(function(x){return x.c===ac.c;});
-      b=maEntry?maEntry.b:0;
-      var ad=ACCT_DEPT_MONTH[m];
-      if(ad&&ad[ac.c]){ad[ac.c].forEach(function(de){a+=de.a;});}
+      // 多选/单月：预算累加所选月份MONTH_ACCTS[m].b，实际累加ACCT_DEPT_MONTH[m]
+      b=mList.reduce(function(s,mi){
+        var maEntry=(MONTH_ACCTS[mi]||[]).find(function(x){return x.c===ac.c;});
+        return s+(maEntry?maEntry.b:0);
+      },0);
+      mList.forEach(function(mi){
+        var ad=ACCT_DEPT_MONTH[mi];
+        if(ad&&ad[ac.c]){ad[ac.c].forEach(function(de){a+=de.a;});}
+      });
     }
-    return {c:ac.c,n:ac.n,r:ac.r,b:b,ytdB:ac.b,a:a,depts:ac.depts};  // ytdB始终为YTD预算
+    return {c:ac.c,n:ac.n,r:ac.r,b:b,ytdB:ac.b,a:a,depts:ac.depts};
   });
   acctArr.forEach(function(ac){
     ac.rate=execRate(ac.a,ac.b);
@@ -985,11 +1019,11 @@ function updateAcct(){
   var mergedOrder = [];
   acctArr.forEach(function(ac){
     var displayName = ac.n.replace(/^.*\//, '');
-    var key = displayName;  // 只按名称合并，确保同名科目彻底合并
+    var key = displayName;
     if(!mergedMap[key]){
       mergedMap[key] = {
         c: ac.c, n: displayName, r: ac.r,
-        codes: [ac.c],  // 记录所有原始科目代码，用于展开行查询
+        codes: [ac.c],
         b: 0, _ytdB: 0, a: 0, depts: [],
         avb: 0, rate: 0, status: '', diff: 0
       };
@@ -999,29 +1033,22 @@ function updateAcct(){
     }
     var mc = mergedMap[key];
     mc.b += ac.b;
-    mc._ytdB += ac.ytdB;  // 累积YTD预算（用于部门预算比例分摊）
+    mc._ytdB += ac.ytdB;
     mc.a += ac.a;
     mc.avb += ac.avb;
     mc.diff = mc.avb - mc.a;
-    // 合并 depts（同部门叠加）
     ac.depts.forEach(function(de){
       var existing = mc.depts.find(function(x){return x.d===de.d;});
-      if(existing){
-        existing.b += de.b;
-        existing.a += de.a;
-      } else {
-        mc.depts.push({d:de.d, b:de.b, a:de.a});
-      }
+      if(existing){existing.b += de.b;existing.a += de.a;}
+      else{mc.depts.push({d:de.d, b:de.b, a:de.a});}
     });
   });
-  // 重新计算rate/status
   mergedOrder.forEach(function(key){
     var mc = mergedMap[key];
     mc.rate = execRate(mc.a, mc.b);
     mc.status = statusTag(mc.rate);
     mc.diff = mc.avb - mc.a;
   });
-  // 按执行率降序
   acctArr = mergedOrder.map(function(key){return mergedMap[key];});
   acctArr.sort(function(a,b){return b.rate-a.rate;});
   // ── 重新渲染左侧执行率条 ─────────────────────────────────────────────────
@@ -1031,45 +1058,48 @@ function updateAcct(){
     elBar.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+ac.n+'</span><div class="dept-bar-stats"><span>可使用预算 ￥'+(ac.avb/10000).toFixed(1)+'万</span><span class="hl">实际 ￥'+(ac.a/10000).toFixed(1)+'万</span><span class="hl">'+ac.rate+'%</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(ac.rate,100)+'%"></div></div></div>';
   });
   // ─────────────────────────────────────────────────────────────────────────
-  renderAcctTable(acctArr,m,lbl);
+  renderAcctTable(acctArr,mList,lbl);
 }
-function renderAcctTable(acctArr,selMonth,lbl){
+function renderAcctTable(acctArr,mList,lbl){
   var body=document.getElementById('acTblBody');
   var foot=document.getElementById('acTblFoot');
   var tB=0,tA=0,tAV=0;
   body.innerHTML='';
   acctArr.forEach(function(ac,ai){
     tB+=ac.b;tA+=ac.a;tAV+=ac.avb;
-    var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'acct',selMonth===0?null:selMonth):fmt(ac.a);
+    // 明细账月份：单月时传月份，多选/YTD时传null
+    var linkMonth=(mList&&mList.length===1)?mList[0]:null;
+    var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'acct',linkMonth):fmt(ac.a);
     var deptRows='';
-    var _codes=ac.codes&&ac.codes.length?ac.codes:[ac.c];  // 所有原始科目代码
+    var _codes=ac.codes&&ac.codes.length?ac.codes:[ac.c];
     ac.depts.forEach(function(de){
-      // 预算：YTD用de.b；单月=部门YTD预算×(科目当月总预算/科目YTD总预算)
+      // 预算：YTD用de.b；多选/单月=部门YTD预算×(科目选择期预算/科目YTD预算)
       var dB;
-      if(selMonth===0){
+      if(mList===null){
         dB=de.b;
       } else {
-        // de.b是部门在该科目的YTD预算；ac._ytdB是科目YTD总预算；ac.b是当月总预算
         dB = ac._ytdB>0 ? de.b*(ac.b/ac._ytdB) : 0;
       }
       var dA=0;
-      if(selMonth===0){
+      if(mList===null){
         // YTD：遍历所有原始科目代码，累加1..DM月
         for(var mi=1;mi<=DM;mi++){
           var ad=ACCT_DEPT_MONTH[mi];
           if(ad){_codes.forEach(function(code){if(ad[code]){ad[code].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}});}
         }
       } else {
-        // 单月：遍历所有原始科目代码，只取selMonth月
-        var ad=ACCT_DEPT_MONTH[selMonth];
-        if(ad){_codes.forEach(function(code){if(ad[code]){ad[code].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}});}
+        // 多选/单月：遍历所有codes，累加所选月份
+        mList.forEach(function(mi){
+          var ad=ACCT_DEPT_MONTH[mi];
+          if(ad){_codes.forEach(function(code){if(ad[code]){ad[code].forEach(function(entry){if(entry.d===de.d){dA+=entry.a;}});}});}
+        });
       }
       var dAvb=availBudget(dB);
       var dRate=dAvb>0?(dA/dAvb*100).toFixed(1):'-';
       var dDiff=dAvb-dA;
-      var dLink=dA>0?glLinkHtml(ac.c,ac.n,de.d,dA,'acct',selMonth===0?null:selMonth):fmt(dA);
+      var dLink=dA>0?glLinkHtml(ac.c,ac.n,de.d,dA,'acct',linkMonth):fmt(dA);
       var dBalCls=dDiff>=0?'num-save':'num-over';
-      if(dB===0&&dA===0) return; // 过滤预算和实际均为0的部门行
+      if(dB===0&&dA===0) return;
       deptRows+='<tr><td>'+de.d+'</td><td>'+fmt(dB)+'</td><td>'+fmt(dAvb)+'</td><td>'+dLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dDiff)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
     });
     body.innerHTML+='<tr class="dept-main-row" data-acctidx="'+ai+'"><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')"><span class="expand-icon" id="acExp'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+(ac.diff>=0?'num-save':'num-over')+'">'+fmt(ac.diff)+'</td><td>'+tagH(ac.status)+'</td></tr><tr class="expand-row" id="acRow'+ai+'"><td colspan="8"><div class="expand-inner" id="acInner'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptRows+'</tbody></table></div></td></tr>';
