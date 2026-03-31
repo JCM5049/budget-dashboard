@@ -568,14 +568,57 @@ function initTrend(){
                 lines.push('');
                 lines.push('━━ 可使用预算 vs 实际发生 ━━');
                 lines.push('差额: ¥'+fmtW(diffAvail)+'万（'+(diffAvail>=0?'结余':'超支')+'）');
-                // Find acct with highest exec rate for the hovered month
+                // 动态计算：与费用分析同口径，合并同名科目后按可使用预算执行率/超支金额排序
                 var monthIdx=items[0].dataIndex; // 0-based
-                var mode=tmMonths[0];
-                var targetMonth=monthIdx+1; // 1-based month
-                var detail=ACCT_RATE_DETAIL[targetMonth];
-                if(detail){
-                  lines.push('');
-                  lines.push('超出可使用预算比例最高：'+detail.acct_name+'，'+detail.dept);
+                var targetMonth=monthIdx+1; // 1-based month（固定取单月数据）
+                var adm=ACCT_DEPT_MONTH[targetMonth];
+                var mAccts=MONTH_ACCTS[targetMonth]||[];
+                if(adm&&mAccts.length>0){
+                  // 合并同名科目（同费用分析逻辑：取最后一段名称）
+                  var acctMap={};
+                  mAccts.forEach(function(ac){
+                    var dispName=ac.n.replace(/^.*\//,'');
+                    var k=dispName+'|'+(ac.r||'');
+                    if(!acctMap[k]){acctMap[k]={name:dispName,code:ac.c,b:0,a:0,deptInfo:{}};}
+                    acctMap[k].b+=ac.b;
+                    // 从ACCT_DEPT_MONTH[targetMonth]取各部门实际
+                    if(adm[ac.c]){
+                      adm[ac.c].forEach(function(en){
+                        if(!acctMap[k].deptInfo[en.d]){acctMap[k].deptInfo[en.d]=0;}
+                        acctMap[k].deptInfo[en.d]+=en.a;
+                        acctMap[k].a+=en.a;
+                      });
+                    }
+                  });
+                  // 找执行率最高（超出比例最高）
+                  var topRate=null,topAmt=null;
+                  Object.values(acctMap).forEach(function(ac){
+                    var avl=availBudget(ac.b);
+                    if(avl<=0||ac.a<=0) return;
+                    var rate=(ac.a/avl*100);
+                    var overAmt=ac.a-avl;
+                    // 找该科目中实际最多的部门
+                    var topDept='',topDeptA=0;
+                    Object.keys(ac.deptInfo).forEach(function(d){
+                      if(ac.deptInfo[d]>topDeptA){topDeptA=ac.deptInfo[d];topDept=d;}
+                    });
+                    var deptStr=topDept?'（'+topDept+'：¥'+fmtW(topDeptA)+'万）':'';
+                    if(!topRate||rate>topRate.rate){
+                      topRate={name:ac.name,rate:rate,avl:avl,a:ac.a,deptStr:deptStr};
+                    }
+                    if(!topAmt||overAmt>topAmt.overAmt){
+                      topAmt={name:ac.name,overAmt:overAmt,a:ac.a,avl:avl,deptStr:deptStr};
+                    }
+                  });
+                  if(topRate){
+                    lines.push('');
+                    var modeNow=tmMonths[0];
+                    lines.push('━━ '+targetMonth+'月单月费用分析 ━━'+(modeNow===0?' (折线图为累计值，此处显示单月)':''));
+                    lines.push('📈 执行率最高：'+topRate.name+'，执行率'+topRate.rate.toFixed(1)+'%'+topRate.deptStr);
+                  }
+                  if(topAmt&&topAmt.overAmt>0){
+                    lines.push('💸 超支金额最高：'+topAmt.name+'，超出¥'+fmtW(topAmt.overAmt)+'万'+topAmt.deptStr);
+                  }
                 }
               }
               return lines;
