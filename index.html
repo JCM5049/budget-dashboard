@@ -276,13 +276,14 @@
 // ═══════════════════════════════════════════════════════════
 const AVAIL_RATE = 0.82;
 function availBudget(b){ return b * AVAIL_RATE; }
-function execRate(actual, budget){ return budget > 0 ? +(actual / availBudget(budget) * 100).toFixed(1) : 0; }
+function execRate(actual, budget){ return budget > 0 ? +(actual / availBudget(budget) * 100).toFixed(1) : (actual > 0 ? Infinity : 0); }
+function fmtRate(rate){ return rate===Infinity?'∞':rate+'%'; }
 function fmt(v){return v==null||v===0?'-':v.toLocaleString('zh-CN',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtW(v){return(v/10000).toFixed(1);}
 function fmtAmt(v){return v<1000?v.toFixed(0)+'元':fmtW(v)+'万';} // tooltip用：小金额显示元
 function tagH(s){const m={'正常':'tag-green','注意':'tag-warn','超支':'tag-red'};return'<span class="tag '+(m[s]||'tag-warn')+'">'+s+'</span>';}
 const STATUS_TH='状态<span class="status-tip" title="正常：实际费用低于可使用预算；超支：实际费用高于可使用预算">?</span>';
-function statusTag(rate){ return rate>100?'超支':(rate>90?'注意':'正常'); }
+function statusTag(rate){ return (rate===Infinity||rate>100)?'超支':(rate>90?'注意':'正常'); }
 
 // ═══════════════════════════════════════════════════════════
 // Data
@@ -457,7 +458,7 @@ function updateOverview(){
   document.getElementById('k2L').textContent=lbl+' 实际发生';document.getElementById('k2V').innerHTML=fmtW(sd.actual)+'<span>万元</span>';document.getElementById('k2S').innerHTML='—';
   var feeRate=sd.budget>0?(sd.actual/sd.budget*100):0;
   document.getElementById('k2bL').textContent=lbl+' 费用率';document.getElementById('k2bV').innerHTML=feeRate.toFixed(1)+'<span>%</span>';document.getElementById('k2bS').textContent='费用率 = 实际 / 调整后预算';
-  document.getElementById('k3L').textContent=lbl+' 执行率';document.getElementById('k3V').innerHTML=rate.toFixed(1)+'<span>%</span>';document.getElementById('k3S').textContent='实际 / 可使用预算';
+  document.getElementById('k3L').textContent=lbl+' 执行率';document.getElementById('k3V').innerHTML=(rate===Infinity?'∞':rate.toFixed(1))+'<span>%</span>';document.getElementById('k3S').textContent='实际 / 可使用预算';
   document.getElementById('k4L').textContent='可使用预算结余';document.getElementById('k4V').innerHTML=fmtW(save)+'<span>万元</span>';document.getElementById('k4S').textContent='结余率 '+saveR.toFixed(1)+'%';
   var k4El=document.getElementById('k4V').closest('.kpi');var k4Line=k4El.querySelector('.kpi-top-line');if(save>=0){k4El.style.background='#d4edda';k4El.style.borderColor='#a8d5b5';k4El.style.color='#000';k4Line.style.background='#28a745';}else{k4El.style.background='#c0392b';k4El.style.borderColor='#922b21';k4El.style.color='#fff';k4Line.style.background='#922b21';}var k2bEl=document.getElementById('k2bV').closest('.kpi');k2bEl.style.background='#f0f0f0';k2bEl.style.borderColor='#d0d0d0';k2bEl.style.color='#222';k2bEl.querySelector('.kpi-top-line').style.background='#999';k2bEl.querySelector('.kpi-label').style.color='#333';k2bEl.querySelector('.kpi-value').style.color='#111';k2bEl.querySelector('.kpi-sub').style.color='#555';var k3El=document.getElementById('k3V').closest('.kpi');k3El.style.background='#f0f0f0';k3El.style.borderColor='#d0d0d0';k3El.style.color='#222';k3El.querySelector('.kpi-top-line').style.background='#999';k3El.querySelector('.kpi-label').style.color='#333';k3El.querySelector('.kpi-value').style.color='#111';k3El.querySelector('.kpi-sub').style.color='#555';var k1El=document.getElementById('k1V').closest('.kpi');k1El.style.background='#f2f0ec';k1El.style.borderColor='#d0ccc8';k1El.style.color='#1a1a1a';k1El.querySelector('.kpi-top-line').style.background='#555555';k1El.querySelector('.kpi-label').style.color='#333';k1El.querySelector('.kpi-value').style.color='#111';k1El.querySelector('.kpi-sub').style.color='#666';var k1bEl=document.getElementById('k1bV').closest('.kpi');k1bEl.style.background='#deeaf7';k1bEl.style.borderColor='#a8c8ee';k1bEl.style.color='#1a2e42';k1bEl.querySelector('.kpi-top-line').style.background='#5b8ec9';k1bEl.querySelector('.kpi-label').style.color='#2a4a6a';k1bEl.querySelector('.kpi-value').style.color='#1a2e42';k1bEl.querySelector('.kpi-sub').style.color='#4a6a8a';var k2El=document.getElementById('k2V').closest('.kpi');k2El.style.background='#e4ede8';k2El.style.borderColor='#b0ccbc';k2El.style.color='#1a2e22';k2El.querySelector('.kpi-top-line').style.background='#7c9a8a';k2El.querySelector('.kpi-label').style.color='#2a4a32';k2El.querySelector('.kpi-value').style.color='#1a2e22';k2El.querySelector('.kpi-sub').style.color='#4a6a52';
   const db=DB;const dab=DB.map(function(b){return availBudget(b);});const da2=DL.map((_,di)=>[1,2,3].reduce((s,mi)=>s+(DMA[mi]||[])[di]||0,0));
@@ -658,8 +659,8 @@ function initTrend(){
                   Object.keys(ac.deptInfo).forEach(function(d){
                     if(ac.deptInfo[d]>topDeptA){topDeptA=ac.deptInfo[d];topDept=d;}
                   });
-                  if(!topRate||overRate>topRate.overRate){
-                    topRate={name:ac.name,overRate:overRate,dept:topDept,avl:avl,a:ac.a};
+                  if(!topRate||overRate>topRate.overRate||(overRate===topRate.overRate&&overRate>=9999&&ac.a>topRate.a)){
+                    topRate={name:ac.name,overRate:overRate,dept:topDept,deptA:topDeptA,avl:avl,a:ac.a};
                   }
                   if(!topAmt||overAmt>topAmt.overAmt){
                     topAmt={name:ac.name,overAmt:overAmt,dept:topDept,avl:avl,a:ac.a};
@@ -672,7 +673,7 @@ function initTrend(){
                   if(topRate){
                     var deptRStr;
                     if(topRate.overRate>=9999){
-                      deptRStr=(topRate.dept?'，'+topRate.dept:'')+'，预算为零但有实际发生';
+                      deptRStr='，预算为零但有实际发生 (¥'+fmtAmt(topRate.deptA)+')';
                     } else {
                       deptRStr=(topRate.dept?'，'+topRate.dept:'')+'，超出'+topRate.overRate.toFixed(1)+'%';
                     }
@@ -757,7 +758,7 @@ function updateTrendAcctTable(){
     var mBalCls=mBal>=0?'num-save':'num-over';
     var mLink=mA>0?'<a class="gl-link" href="javascript:void(0)" onclick="showMonthGL('+m+')">'+fmt(mA)+'</a>':fmt(mA);
     tB+=mB;tA+=mA;tAV+=mAvb;
-    html+='<tr class="dept-main-row"><td class="expand-toggle" onclick="toggleTrendMonth('+m+')"><span class="expand-icon" id="tdExpM'+m+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonth('+m+')">'+ML[m-1]+'</td><td>'+fmt(mB)+'</td><td>'+fmt(mAvb)+'</td><td>'+mLink+'</td><td>'+mRate+'%</td><td class="'+mBalCls+'">'+fmt(mBal)+'</td><td>'+tagH(mStatus)+'</td></tr>';
+    html+='<tr class="dept-main-row"><td class="expand-toggle" onclick="toggleTrendMonth('+m+')"><span class="expand-icon" id="tdExpM'+m+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonth('+m+')">'+ML[m-1]+'</td><td>'+fmt(mB)+'</td><td>'+fmt(mAvb)+'</td><td>'+mLink+'</td><td>'+fmtRate(mRate)+'</td><td class="'+mBalCls+'">'+fmt(mBal)+'</td><td>'+tagH(mStatus)+'</td></tr>';
     var innerHtml='';
     // 去「集团内/」前缀，按显示名+费用类型合并
     var _tMap={};
@@ -780,11 +781,11 @@ function updateTrendAcctTable(){
     var sortedAccts=Object.values(_tMap).map(function(ac){
       var avb=availBudget(ac.b);
       return {c:ac.c,n:ac.n,b:ac.b,a:ac.a,r:ac.r,d:ac.d,avb:avb,rate:execRate(ac.a,ac.b),status:statusTag(execRate(ac.a,ac.b)),bal:avb-ac.a};
-    }).sort(function(a,b){return b.rate-a.rate;});
+    }).sort(function(a,b){if(b.rate===Infinity&&a.rate===Infinity)return b.a-a.a;return b.rate-a.rate;});
     sortedAccts.forEach(function(ac,ai){
       var balCls=ac.bal>=0?'num-save':'num-over';
       var acctLink=ac.a>0?glLinkHtml(ac.c,ac.n,'',ac.a,'trend',m):fmt(ac.a);
-      innerHtml+='<tr class="dept-main-row" style="background:#faf8f5"><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')"><span class="expand-icon" id="tdExpMA'+m+'_'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+balCls+'">'+fmt(ac.bal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
+      innerHtml+='<tr class="dept-main-row" style="background:#faf8f5"><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')"><span class="expand-icon" id="tdExpMA'+m+'_'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleTrendMonthAcct('+m+','+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+fmtRate(ac.rate)+'</td><td class="'+balCls+'">'+fmt(ac.bal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
       var deptHtml='';
       if(ac.d&&ac.d.length){
         // 从ACCT_ALL中找该科目（含同名合并的多个原始科目）各部门的YTD预算，用于分摊当月科目总预算
@@ -801,10 +802,10 @@ function updateTrendAcctTable(){
           var deptAcctYTDB=_acctYTDBmap[de.n]||0;
           var dB=_acctYTDBtotal>0?ac.b*(deptAcctYTDB/_acctYTDBtotal):0;
           var dAvb=availBudget(dB);
-          var dRate=dAvb>0?(de.a/dAvb*100).toFixed(1):'-';
+          var dRate=dAvb>0?(de.a/dAvb*100):(de.a>0?Infinity:0);
           var dBal=dAvb-de.a;
           var dBalCls=dBal>=0?'num-save':'num-over';
-          deptHtml+='<tr><td>'+de.n+'</td><td style="text-align:right">'+fmt(dB)+'</td><td style="text-align:right">'+fmt(dAvb)+'</td><td style="text-align:right">'+deptLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dBal)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
+          deptHtml+='<tr><td>'+de.n+'</td><td style="text-align:right">'+fmt(dB)+'</td><td style="text-align:right">'+fmt(dAvb)+'</td><td style="text-align:right">'+deptLink+'</td><td style="text-align:right">'+fmtRate(dRate===Infinity?Infinity:+dRate.toFixed(1))+'</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dBal)+'</td><td>'+tagH(statusTag(dRate))+'</td></tr>';
         });
       }
       innerHtml+='<tr class="expand-row" id="tdRowMA'+m+'_'+ai+'"><td colspan="8"><div class="expand-inner" id="tdInnerMA'+m+'_'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptHtml+'</tbody></table></div></td></tr>';
@@ -901,11 +902,11 @@ function updateDept(){
   const dd=deptSliceData(dmMonths);const lbl=monthLbls(dmMonths);
   const deptArr=DL.map((n,i)=>({name:n,idx:i,budget:dd.budget[i],actual:dd.actual[i]}));
   deptArr.forEach(d=>{d.rate=execRate(d.actual,d.budget);d.status=statusTag(d.rate);d.diff=availBudget(d.budget)-d.actual;});
-  deptArr.sort((a,b)=>b.rate-a.rate);
+  deptArr.sort((a,b)=>{if(b.rate===Infinity&&a.rate===Infinity)return b.actual-a.actual;return b.rate-a.rate;});
   const el=document.getElementById('dmBars');el.innerHTML='';
   deptArr.forEach(d=>{
-    const c=d.rate>100?'over':(d.rate>90?'warn':'safe');
-    el.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+d.name+'</span><div class="dept-bar-stats"><span>可使用预算 ¥'+(availBudget(d.budget)/10000).toFixed(1)+'万</span><span class="hl">实际 ¥'+(d.actual/10000).toFixed(1)+'万</span><span class="hl">'+d.rate+'%</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(d.rate,100)+'%"></div></div></div>';
+    const c=d.rate===Infinity||d.rate>100?'over':(d.rate>90?'warn':'safe');
+    el.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+d.name+'</span><div class="dept-bar-stats"><span>可使用预算 ¥'+(availBudget(d.budget)/10000).toFixed(1)+'万</span><span class="hl">实际 ¥'+(d.actual/10000).toFixed(1)+'万</span><span class="hl">'+fmtRate(d.rate)+'</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(d.rate===Infinity?100:d.rate,100)+'%"></div></div></div>';
   });
   document.getElementById('dmBarT').textContent='部门执行率排行（'+lbl+'·降序）';
   renderDeptTable(deptArr);
@@ -958,16 +959,16 @@ function renderDeptTable(deptArr){
     }
     const sortedAccts=Object.values(_acctMap)
       .map(ac=>({...ac,rate:execRate(ac.a,ac.b),status:statusTag(execRate(ac.a,ac.b))}))
-      .sort((a,b)=>b.rate-a.rate);
+      .sort((a,b)=>{if(b.rate===Infinity&&a.rate===Infinity)return b.a-a.a;return b.rate-a.rate;});
     // 展开行明细账月份：单月时传月份，多选/YTD时传null
     const _dmLinkMonth=(mList&&mList.length===1)?mList[0]:null;
     let acctRows='';
     sortedAccts.filter(ac=>ac.b>0||ac.a>0).forEach(ac=>{
       const acctActualLink=ac.a>0?glLinkHtml(ac.c,ac.n,d.name,ac.a,'dept',_dmLinkMonth):fmt(ac.a);
       var acctBal=availBudget(ac.b)-ac.a;var acctBalCls=acctBal>=0?'num-save':'num-over';
-      acctRows+='<tr><td>'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(availBudget(ac.b))+'</td><td>'+acctActualLink+'</td><td>'+ac.rate+'%</td><td class="'+acctBalCls+'">'+fmt(acctBal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
+      acctRows+='<tr><td>'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(availBudget(ac.b))+'</td><td>'+acctActualLink+'</td><td>'+fmtRate(ac.rate)+'</td><td class="'+acctBalCls+'">'+fmt(acctBal)+'</td><td>'+tagH(ac.status)+'</td></tr>';
     });
-    body.innerHTML+='<tr class="dept-main-row" data-dept="'+d.idx+'"><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')"><span class="expand-icon" id="deptExp'+d.idx+'">▶</span></td><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')">'+d.name+'</td><td>'+fmt(d.budget)+'</td><td>'+fmt(availBudget(d.budget))+'</td><td>'+fmt(d.actual)+'</td><td>'+d.rate+'%</td><td class="'+(d.diff>=0?'num-save':'num-over')+'">'+fmt(d.diff)+'</td><td>'+tagH(d.status)+'</td></tr><tr class="expand-row" id="deptRow'+d.idx+'"><td colspan="8"><div class="expand-inner" id="deptInner'+d.idx+'"><table class="expand-sub-table"><thead><tr><th>费用名称</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+acctRows+'</tbody></table></div></td></tr>';
+    body.innerHTML+='<tr class="dept-main-row" data-dept="'+d.idx+'"><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')"><span class="expand-icon" id="deptExp'+d.idx+'">▶</span></td><td class="expand-toggle" onclick="toggleDeptExpand('+d.idx+')">'+d.name+'</td><td>'+fmt(d.budget)+'</td><td>'+fmt(availBudget(d.budget))+'</td><td>'+fmt(d.actual)+'</td><td>'+fmtRate(d.rate)+'</td><td class="'+(d.diff>=0?'num-save':'num-over')+'">'+fmt(d.diff)+'</td><td>'+tagH(d.status)+'</td></tr><tr class="expand-row" id="deptRow'+d.idx+'"><td colspan="8"><div class="expand-inner" id="deptInner'+d.idx+'"><table class="expand-sub-table"><thead><tr><th>费用名称</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+acctRows+'</tbody></table></div></td></tr>';
   });
   const tRate=tAvb>0?(tA/tAvb*100).toFixed(1):'-';
   foot.innerHTML='<tr><td></td><td>合计</td><td>'+fmt(tB)+'</td><td>'+fmt(tAvb)+'</td><td>'+fmt(tA)+'</td><td>'+tRate+'%</td><td class="'+(tAvb-tA>=0?'num-save':'num-over')+'">'+fmt(tAvb-tA)+'</td><td>—</td></tr>';
@@ -1050,12 +1051,12 @@ function updateAcct(){
     mc.diff = mc.avb - mc.a;
   });
   acctArr = mergedOrder.map(function(key){return mergedMap[key];});
-  acctArr.sort(function(a,b){return b.rate-a.rate;});
+  acctArr.sort(function(a,b){if(b.rate===Infinity&&a.rate===Infinity)return b.a-a.a;return b.rate-a.rate;});
   // ── 重新渲染左侧执行率条 ─────────────────────────────────────────────────
   var elBar=document.getElementById('acBars');elBar.innerHTML='';
   acctArr.forEach(function(ac){
-    var c=ac.rate>100?'over':(ac.rate>90?'warn':'safe');
-    elBar.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+ac.n+'</span><div class="dept-bar-stats"><span>可使用预算 ￥'+(ac.avb/10000).toFixed(1)+'万</span><span class="hl">实际 ￥'+(ac.a/10000).toFixed(1)+'万</span><span class="hl">'+ac.rate+'%</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(ac.rate,100)+'%"></div></div></div>';
+    var c=ac.rate===Infinity||ac.rate>100?'over':(ac.rate>90?'warn':'safe');
+    elBar.innerHTML+='<div class="dept-bar-item"><div class="dept-bar-header"><span class="dept-bar-name">'+ac.n+'</span><div class="dept-bar-stats"><span>可使用预算 ￥'+(ac.avb/10000).toFixed(1)+'万</span><span class="hl">实际 ￥'+(ac.a/10000).toFixed(1)+'万</span><span class="hl">'+fmtRate(ac.rate)+'</span></div></div><div class="bar-track"><div class="bar-fill '+c+'" style="width:'+Math.min(ac.rate===Infinity?100:ac.rate,100)+'%"></div></div></div>';
   });
   // ─────────────────────────────────────────────────────────────────────────
   renderAcctTable(acctArr,mList,lbl);
@@ -1095,14 +1096,14 @@ function renderAcctTable(acctArr,mList,lbl){
         });
       }
       var dAvb=availBudget(dB);
-      var dRate=dAvb>0?(dA/dAvb*100).toFixed(1):'-';
+      var dRate=dAvb>0?(dA/dAvb*100):( dA>0?Infinity:0 );
       var dDiff=dAvb-dA;
       var dLink=dA>0?glLinkHtml(ac.c,ac.n,de.d,dA,'acct',linkMonth):fmt(dA);
       var dBalCls=dDiff>=0?'num-save':'num-over';
       if(dB===0&&dA===0) return;
-      deptRows+='<tr><td>'+de.d+'</td><td>'+fmt(dB)+'</td><td>'+fmt(dAvb)+'</td><td>'+dLink+'</td><td style="text-align:right">'+dRate+'%</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dDiff)+'</td><td>'+tagH(statusTag(parseFloat(dRate)||0))+'</td></tr>';
+      deptRows+='<tr><td>'+de.d+'</td><td>'+fmt(dB)+'</td><td>'+fmt(dAvb)+'</td><td>'+dLink+'</td><td style="text-align:right">'+fmtRate(dRate===Infinity?Infinity:+dRate.toFixed(1))+'</td><td style="text-align:right" class="'+dBalCls+'">'+fmt(dDiff)+'</td><td>'+tagH(statusTag(dRate))+'</td></tr>';
     });
-    body.innerHTML+='<tr class="dept-main-row" data-acctidx="'+ai+'"><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')"><span class="expand-icon" id="acExp'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+ac.rate+'%</td><td class="'+(ac.diff>=0?'num-save':'num-over')+'">'+fmt(ac.diff)+'</td><td>'+tagH(ac.status)+'</td></tr><tr class="expand-row" id="acRow'+ai+'"><td colspan="8"><div class="expand-inner" id="acInner'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptRows+'</tbody></table></div></td></tr>';
+    body.innerHTML+='<tr class="dept-main-row" data-acctidx="'+ai+'"><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')"><span class="expand-icon" id="acExp'+ai+'">▶</span></td><td class="expand-toggle" onclick="toggleAcctExpand('+ai+')">'+ac.n+'</td><td>'+fmt(ac.b)+'</td><td>'+fmt(ac.avb)+'</td><td>'+acctLink+'</td><td>'+fmtRate(ac.rate)+'</td><td class="'+(ac.diff>=0?'num-save':'num-over')+'">'+fmt(ac.diff)+'</td><td>'+tagH(ac.status)+'</td></tr><tr class="expand-row" id="acRow'+ai+'"><td colspan="8"><div class="expand-inner" id="acInner'+ai+'"><table class="expand-sub-table"><thead><tr><th>部门</th><th style="text-align:right">调整后预算</th><th style="text-align:right">可使用预算</th><th style="text-align:right">实际发生</th><th style="text-align:right">执行率</th><th style="text-align:right">预算结余</th><th>状态</th></tr></thead><tbody>'+deptRows+'</tbody></table></div></td></tr>';
   });
   var tRate=tAV>0?(tA/tAV*100).toFixed(1):'-';
   foot.innerHTML='<tr><td></td><td>合计</td><td>'+fmt(tB)+'</td><td>'+fmt(tAV)+'</td><td>'+fmt(tA)+'</td><td>'+tRate+'%</td><td class="'+(tAV-tA>=0?'num-save':'num-over')+'">'+fmt(tAV-tA)+'</td><td>—</td></tr>';
